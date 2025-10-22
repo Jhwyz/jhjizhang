@@ -35,5 +35,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 暴露端口（Render 要求）
 EXPOSE 8443
 
-# 启动命令
-CMD ["python", "main.py"]
+# 启动脚本
+RUN chmod +x /app/start.sh
+CMD ["bash", "/app/start.sh"]
+
