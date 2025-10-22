@@ -1,7 +1,9 @@
 from telegram.ext import CommandHandler, Application
 import requests
 
-BOT_TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
+PORT = int(os.environ.get("PORT", 8443))
 
 def get_okx_p2p_price():
     url = "https://www.okx.com/v3/c2c/tradingOrders/books"
@@ -28,4 +30,5 @@ async def price(update, context):
 app = Application.builder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("price", price))
 app.run_polling()
+
 
