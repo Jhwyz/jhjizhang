@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+import asyncio
 
 # === Telegram 基本设置 ===
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
@@ -62,9 +63,7 @@ def format_message(transactions):
 def get_okx_price():
     try:
         url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        }
+        headers = {"User-Agent": "Mozilla/5.0"}
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -74,7 +73,11 @@ def get_okx_price():
         print("[ERROR] 获取 OKX P2P 失败:", e)
         return "获取失败"
 
-# === Telegram 机器人部分 ===
+# === Telegram 命令处理 ===
+async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    price = get_okx_price()
+    await update.message.reply_text(f"💹 当前 OKX P2P 买入 USDT 价格: {price}")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user.username or "未知用户"
     text = update.message.text.strip()
@@ -142,6 +145,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === 创建 Telegram 应用 ===
 application = Application.builder().token(TOKEN).build()
+application.add_handler(CommandHandler("price", price_command))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 @app.route(f"/{TOKEN}", methods=["POST"])
@@ -157,8 +161,6 @@ def home():
 # === 主程序入口 ===
 if __name__ == "__main__":
     print(f"🚀 启动 Telegram Bot，端口：{PORT}")
-    application.bot.set_webhook(url=WEBHOOK_URL + TOKEN)
+    # 修复异步 webhook 设置
+    asyncio.run(application.bot.set_webhook(url=WEBHOOK_URL + TOKEN))
     app.run(host="0.0.0.0", port=PORT)
-
-
-
