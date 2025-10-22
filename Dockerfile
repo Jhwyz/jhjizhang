@@ -1,38 +1,51 @@
-# 使用 Python 3.10 而不是 3.13，因为 Chrome 在 3.13 的 slim 环境下常常出错
-FROM python:3.10-slim
+# 使用官方 Python 镜像
+FROM python:3.13-slim
 
+# 设置工作目录
 WORKDIR /app
-COPY . .
 
-# ---------- 安装系统依赖 ----------
+# 安装依赖工具
 RUN apt-get update && apt-get install -y \
-    wget gnupg curl unzip \
-    fonts-liberation libnss3 libxss1 libappindicator3-1 \
-    libatk-bridge2.0-0 libgtk-3-0 libx11-xcb1 xdg-utils
+    wget \
+    curl \
+    unzip \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    libnss3 \
+    libxss1 \
+    libappindicator3-1 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    xdg-utils \
+    --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
-# ---------- 添加 Google Chrome 官方源 ----------
-RUN mkdir -p /etc/apt/keyrings \
-    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub \
-        | gpg --dearmor -o /etc/apt/keyrings/google-linux-signing-key.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-linux-signing-key.gpg] \
-        http://dl.google.com/linux/chrome/deb/ stable main" \
-        > /etc/apt/sources.list.d/google-chrome.list
+# 安装 Google Chrome
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
 
-# ---------- 安装 Chrome ----------
-RUN apt-get update && apt-get install -y google-chrome-stable
-
-# ---------- 安装 ChromeDriver ----------
-RUN CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9.]+' | cut -d. -f1) \
-    && DRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}") \
-    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${DRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
-    && unzip chromedriver-linux64.zip \
-    && mv chromedriver-linux64/chromedriver /usr/local/bin/ \
+# 安装 ChromeDriver
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') \
+    && wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip \
+    && unzip /tmp/chromedriver.zip -d /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf chromedriver-linux64 chromedriver-linux64.zip
+    && rm /tmp/chromedriver.zip
 
-# ---------- 安装 Python 依赖 ----------
+# 复制代码
+COPY . /app
+
+# 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ---------- 启动脚本 ----------
-RUN chmod +x /app/start.sh
-CMD ["bash", "/app/start.sh"]
+# 赋予启动脚本执行权限
+RUN chmod +x start.sh
+
+# 暴露端口（根据你的应用端口）
+EXPOSE 8000
+
+# 启动
+CMD ["bash", "start.sh"]
