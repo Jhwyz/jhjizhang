@@ -10,8 +10,8 @@ from telegram.ext import (
 )
 
 # ------------------- 配置 -------------------
-TOKEN = "YOUR_TOKEN_HERE"
-WEBHOOK_URL = "https://yourapp.onrender.com/"
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
 PORT = 8443
 
 # ------------------- 数据存储 -------------------
@@ -238,4 +238,5 @@ app.run_webhook(
     url_path=TOKEN,
     webhook_url=WEBHOOK_URL + TOKEN
 )
+
 
