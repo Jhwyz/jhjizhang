@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-import asyncio
 
 # === Telegram 基本设置 ===
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
@@ -63,9 +62,7 @@ def format_message(transactions):
 def get_okx_price():
     try:
         url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -79,10 +76,15 @@ def get_okx_price():
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user.username or "未知用户"
     text = update.message.text.strip()
-    print(f"[DEBUG] 收到消息: '{text}'")  # debug打印
 
-    # 支持中文 "价格" 或 /price 命令
-    if text == "价格" or text.lower() == "/price":
+    # 中文价格触发
+    if text == "价格":
+        price = get_okx_price()
+        await update.message.reply_text(f"💹 当前 OKX P2P 买入 USDT 价格: {price}")
+        return
+
+    # /price 命令触发
+    if text.lower() == "/price":
         price = get_okx_price()
         await update.message.reply_text(f"💹 当前 OKX P2P 买入 USDT 价格: {price}")
         return
@@ -145,9 +147,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === 创建 Telegram 应用 ===
 application = Application.builder().token(TOKEN).build()
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# === Webhook 路由 ===
+# 注册 handler
+application.add_handler(MessageHandler(filters.TEXT, handle_message))
+application.add_handler(CommandHandler("price", handle_message))  # /price 命令
+
+# === Flask Webhook ===
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
@@ -160,7 +165,18 @@ def home():
 
 # === 主程序入口 ===
 if __name__ == "__main__":
-    print(f"🚀 启动 Telegram Bot，端口：{PORT}")
-    # 使用 asyncio.run 确保 webhook 被 await
-    asyncio.run(application.bot.set_webhook(url=WEBHOOK_URL + TOKEN))
-    app.run(host="0.0.0.0", port=PORT)
+    import asyncio
+    async def main():
+        # 等待 set_webhook
+        await application.bot.set_webhook(url=WEBHOOK_URL + TOKEN)
+        print(f"🚀 Telegram Bot 已设置 webhook，端口：{PORT}")
+        # 启动 Flask
+        from threading import Thread
+        Thread(target=lambda: app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)).start()
+        # 启动 Telegram polling 处理队列
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling()
+        await application.idle()
+
+    asyncio.run(main())
