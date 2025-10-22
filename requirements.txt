@@ -6,3 +6,4 @@ uvicorn[standard]
 requests
 tornado==6.5.2
 beautifulsoup4
+selenium
