@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
 
-TOKEN = "你的BotToken"
-WEBHOOK_URL = "https://你的域名.onrender.com/"
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
 PORT = int(os.environ.get("PORT", 8443))
 
 DATA_FILE = "data.json"
@@ -194,3 +194,4 @@ app.run_webhook(
     url_path=TOKEN,
     webhook_url=WEBHOOK_URL + TOKEN
 )
+
