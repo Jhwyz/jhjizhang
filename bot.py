@@ -1,51 +1,41 @@
 import requests
-from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ===== 配置 =====
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
 WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
-PORT = 10000
-SCRAPINGBEE_API_KEY = "GS65DVP3XMA9M2WBRUY990MW2Z7KZSQKNC5ZZT1K2S6JAIS73NHIA5IGMPH35UU0PEWOXMG8HCF6R6FB"
+PORT = 10000  # 直接写端口，不用 os.environ
 
 # 每次启动强制设置 Webhook
 r = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}{TOKEN}")
 print(r.text)  # 输出确认信息
 
-# ===== 从 OKX P2P 获取前五个卖家实时人民币价格 =====
+# ===== 从 OKX P2P JSON 接口获取前五个卖家实时人民币价格 =====
 def get_okx_usdt_prices():
     try:
-        url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-        res = requests.get(
-            "https://app.scrapingbee.com/api/v1/",
-            params={
-                "api_key": SCRAPINGBEE_API_KEY,
-                "url": url,
-                "render_js": "true"
-            },
-            timeout=10
-        )
-        soup = BeautifulSoup(res.text, "html.parser")
-        rows = soup.select(
-            "#root > div:nth-child(4) > div > main > section > div > div > div > div > div > table > tbody > tr"
-        )
-        sellers = []
-        for row in rows[:5]:
-            try:
-                name = row.select_one("td:nth-child(1) span").text.strip()  # 卖家名字
-                price = row.select_one("td:nth-child(2) span").text.strip()  # 卖价
-                sellers.append((name, price))
-            except:
-                continue
+        url = "https://www.okx.com/v3/c2c/tradingOrders/books"
+        params = {
+            "quoteCurrency": "cny",
+            "baseCurrency": "usdt",
+            "side": "buy",
+            "paymentMethod": "all"
+        }
+        res = requests.get(url, params=params, timeout=5)
+        data = res.json()
+        orders = data.get("data", {}).get("buy", [])
 
-        if not sellers:
+        if not orders:
             return "💰 当前 USDT 买入价格：暂无数据"
 
+        sellers = orders[:5]  # 前五个卖家
         msg = "💰 当前 OKX 买入 USDT 前五个卖家价格：\n"
-        for i, (name, price) in enumerate(sellers, 1):
+        for i, order in enumerate(sellers, 1):
+            name = order.get("nickName", "未知")
+            price = order.get("price", "未知")
             msg += f"{i}. {name} - {price} CNY\n"
         return msg
+
     except Exception as e:
         print(f"❌ 获取 OKX 价格出错: {e}")
         return "💰 当前 USDT 价格：未知"
