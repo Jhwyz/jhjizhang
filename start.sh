@@ -1,3 +1,7 @@
 #!/bin/bash
-# Render 会自动设置 $PORT 环境变量
+
+# Render 上默认端口
+PORT=${PORT:=10000}
+
+# 启动 FastAPI + PTB Webhook
 uvicorn main:app --host 0.0.0.0 --port $PORT
