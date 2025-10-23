@@ -1,11 +1,11 @@
-import asyncio
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import requests
+import os
 
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换为你的 Bot Token
 WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 替换为你的域名
-PORT = 8443
+PORT = int(os.environ.get("PORT", 8443))  # 可以直接写 PORT = 8443
 
 async def get_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """查询 USDT 价格"""
@@ -17,29 +17,21 @@ async def get_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"查询失败: {e}")
 
-async def main():
+def main():
+    # 创建机器人应用
     app = ApplicationBuilder().token(TOKEN).build()
-
-    # 初始化应用
-    await app.initialize()
 
     # 添加处理器
     app.add_handler(CommandHandler("usdt", get_usdt))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_usdt))
 
-    # 启动 webhook
-    await app.start_webhook(
+    # 启动 Webhook
+    app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
         webhook_url=WEBHOOK_URL + TOKEN
     )
 
-    print("Bot 已启动，Webhook 已就绪")
-
-    # 阻塞运行
-    await app.updater.start_polling()
-    await app.updater.idle()
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
