@@ -1,4 +1,2 @@
-python-telegram-bot>=22.5
-httpx>=0.26
-beautifulsoup4
+python-telegram-bot==22.5
 requests
