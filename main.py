@@ -1,15 +1,14 @@
 # main.py
 import os
 import requests
+import asyncio
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters, CommandHandler
 
 # Telegram Bot Token
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-# Render 自动提供的端口
 PORT = int(os.environ.get("PORT", "10000"))
-# 你的 Render App URL
 APP_URL = os.environ.get("APP_URL", "https://jhwlkjjz.onrender.com")
 
 app = Flask(__name__)
@@ -17,7 +16,7 @@ app = Flask(__name__)
 # 创建 Bot Application
 application = ApplicationBuilder().token(TOKEN).build()
 
-# 获取币价函数（OKX P2P 买入为例）
+# 获取币价函数
 def get_price(symbol: str) -> str:
     try:
         symbol = symbol.upper()
@@ -50,7 +49,10 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_m
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), Bot(TOKEN))
-    application.run_async(application.process_update(update))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(application.process_update(update))
+    loop.close()
     return "OK", 200
 
 # 设置 Webhook
