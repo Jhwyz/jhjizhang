@@ -7,3 +7,4 @@ httpx==0.28.1
 
 # --- 异步工具 ---
 anyio>=4.0
+beautifulsoup4
