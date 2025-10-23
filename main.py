@@ -1,51 +1,48 @@
-import os
 import requests
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-# Telegram Bot Token
-TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-PORT = int(os.environ.get("PORT", 8443))
-WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 填写你部署的 URL
+TOKEN = "你的BotToken"
 
-# OKX P2P 买入 USDT 页面
-OKX_URL = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-
-async def get_prices():
-    """抓取 OKX 前五个买入 USDT 的价格"""
+# ---------- 获取 OKX 前五个 CNY 买入 USDT 价格 ----------
+def get_okx_prices():
+    url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": "Mozilla/5.0"
     }
-    resp = requests.get(OKX_URL, headers=headers, timeout=10)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "html.parser")
 
-    # P2P 页面里的价格在 data-price 属性或者特定类名里
-    # 这里用示例 CSS 类选择器，根据网页实际结构可能需要调整
+    # 找到前五个价格，OKX 页面结构可能变化，需要调整选择器
     prices = []
-    for item in soup.select(".p2p-table .p2p-item .price")[:5]:
-        prices.append(item.get_text(strip=True))
+    table_rows = soup.select("table tbody tr")  # 可能需要调整选择器
+    for row in table_rows[:5]:
+        price_td = row.select_one("td")  # 第一个 td 是价格
+        if price_td:
+            prices.append(price_td.get_text(strip=True))
+    return prices
 
-    return prices if prices else ["未能获取价格"]
+# ---------- Telegram Bot 命令 ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("发送 /price 查询 OKX 前五个买入 USDT 价格")
 
-async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        prices = await get_prices()
-        msg = "💰 OKX CNY-USDT 前五个买入价格:\n" + "\n".join(prices)
-        await update.message.reply_text(msg)
+        prices = get_okx_prices()
+        if prices:
+            msg = "OKX 前五个 CNY 买入 USDT 价格:\n" + "\n".join(prices)
+        else:
+            msg = "获取价格失败，请稍后重试"
     except Exception as e:
-        await update.message.reply_text(f"❌ 获取价格失败: {e}")
+        msg = f"获取价格出错: {e}"
+    await update.message.reply_text(msg)
 
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("prices", prices_command))
+# ---------- 启动 Bot ----------
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("price", price))
 
-    # 使用 webhook 部署
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=WEBHOOK_URL + TOKEN
-    )
-
+# Webhook 方式可以用 run_polling 简化部署
+app.run_polling()
