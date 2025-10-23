@@ -1,60 +1,51 @@
-import os
-import asyncio
-import httpx
+import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telegram.ext import Updater, CommandHandler, CallbackContext
+import requests
 
-# ------------------- 配置 -------------------
-TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 替换为你自己的 webhook 地址
-PORT = 8443
+# ---------- 配置 ----------
+TOKEN = "YOUR_BOT_TOKEN"  # 替换为你的 Token
+WEBHOOK_URL = "https://yourdomain.com/"  # 替换为你部署的 URL
+PORT = 8443  # Render 等云平台默认端口
 
-# ------------------- 查询 OKX USDT 前五价格 -------------------
-OKX_API = "https://www.okx.com/v3/c2c/market/ticker?instId=USDT-CNY"
+# ---------- 日志 ----------
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-async def get_usdt_prices():
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(OKX_API)
-            data = resp.json()
-            # OKX P2P 数据可能在 "data" 或 "ticker" 字段，这里假设返回 list
-            prices = []
-            if isinstance(data, list):
-                for i, item in enumerate(data[:5]):
-                    price = item.get("price") or item.get("last") or "未知"
-                    prices.append(f"{i+1}. {price} CNY")
-            else:
-                # fallback: 如果返回对象包含 ticker
-                ticker = data.get("ticker", [])
-                for i, item in enumerate(ticker[:5]):
-                    price = item.get("price") or "未知"
-                    prices.append(f"{i+1}. {price} CNY")
-            return "\n".join(prices) if prices else "获取失败"
-        except Exception as e:
-            return f"获取失败: {e}"
+# ---------- 查询 USDT 价格 ----------
+def get_usdt_price():
+    try:
+        resp = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTUSDT")
+        data = resp.json()
+        return data.get("price", "未知")
+    except Exception as e:
+        logger.error(f"查询 USDT 出错: {e}")
+        return "查询失败"
 
-# ------------------- 消息处理 -------------------
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip().lower()
-    if text in ["usdt", "价格", "查询usdt"]:
-        prices = await get_usdt_prices()
-        await update.message.reply_text(f"🔥 OKX 买入 USDT 前五价：\n{prices}")
-    else:
-        await update.message.reply_text("请输入 'USDT' 查询最新价格")
+# ---------- 命令 ----------
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("欢迎使用 USDT 价格查询机器人！发送 /price 查看价格。")
 
-# ------------------- Webhook 应用 -------------------
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+def price(update: Update, context: CallbackContext):
+    p = get_usdt_price()
+    update.message.reply_text(f"当前 USDT 价格: {p}")
 
-    await app.start_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=WEBHOOK_URL + TOKEN
-    )
-    print(f"Bot 已启动，Webhook 地址: {WEBHOOK_URL + TOKEN}")
-    await app.idle()
+# ---------- 主函数 ----------
+def main():
+    updater = Updater(TOKEN)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("price", price))
+
+    # 启动 Webhook
+    updater.start_webhook(listen="0.0.0.0",
+                          port=PORT,
+                          url_path=TOKEN,
+                          webhook_url=WEBHOOK_URL + TOKEN)
+    updater.idle()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
