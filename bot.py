@@ -1,14 +1,18 @@
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-import requests
 import os
+import requests
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ===== 配置 =====
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-WEBHOOK_URL = "https://jhwlkjjz.onrender.com"
-PORT = 8443
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
+PORT = 10000  # 直接写端口，不用 os.environ
 
-# ===== 从 OKX P2P（买入 USDT 页面）获取实时人民币价格 =====
+# 每次启动强制设置 Webhook
+r = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}{TOKEN}")
+print(r.text)  # 输出确认信息
+
+# ===== 从 OKX P2P 获取实时人民币价格 =====
 def get_okx_usdt_price():
     try:
         url = "https://www.okx.com/v3/c2c/tradingOrders/books?quoteCurrency=cny&baseCurrency=usdt&side=buy&paymentMethod=all"
@@ -35,7 +39,7 @@ async def usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===== 主程序入口 =====
 def main():
-    app = Application.builder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("usdt", usdt))
 
@@ -44,7 +48,7 @@ def main():
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
-        webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
+        webhook_url=f"{WEBHOOK_URL}{TOKEN}",
     )
 
 if __name__ == "__main__":
