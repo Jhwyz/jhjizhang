@@ -1,3 +1,4 @@
 #!/bin/bash
-export PORT=8443
+pip install --upgrade pip
+pip install -r requirements.txt
 python3 bot.py
