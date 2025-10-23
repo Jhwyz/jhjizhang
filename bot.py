@@ -1,37 +1,62 @@
+import asyncio
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
 import requests
 import os
 
+# ===== 配置 =====
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换为你的 Bot Token
 WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 替换为你的域名
 PORT = int(os.environ.get("PORT", 8443))  # 可以直接写 PORT = 8443
 
-async def get_usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """查询 USDT 价格"""
+# ===== 从 OKX 获取 USDT 人民币报价 =====
+def get_okx_usdt_price():
     try:
-        res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTUSDT")  # 示例 API
+        url = "https://www.okx.com/v3/c2c/tradingOrders/books?quoteCurrency=cny&baseCurrency=usdt&side=sell&paymentMethod=all"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+        res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
-        price = data.get("price", "未知")
-        await update.message.reply_text(f"💰 当前 USDT 价格：{price}")
+        orders = data.get("data", {}).get("sell", [])
+        if not orders:
+            return "💰 当前 USDT 价格：暂无数据"
+
+        # 取前5个卖家的报价计算平均价
+        prices = [float(order["price"]) for order in orders[:5]]
+        avg_price = sum(prices) / len(prices)
+        return f"💰 当前 OKX C2C 人民币买入 USDT 均价：{avg_price:.2f} CNY"
     except Exception as e:
-        await update.message.reply_text(f"查询失败: {e}")
+        print(f"❌ 获取 OKX 价格出错: {e}")
+        return "💰 当前 USDT 价格：未知"
 
-def main():
-    # 创建机器人应用
-    app = ApplicationBuilder().token(TOKEN).build()
+# ===== 命令 =====
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("欢迎使用 OKX USDT 价格机器人！输入 /usdt 查看最新价格。")
 
-    # 添加处理器
-    app.add_handler(CommandHandler("usdt", get_usdt))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_usdt))
+async def usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    price_message = get_okx_usdt_price()
+    await update.message.reply_text(price_message)
 
-    # 启动 Webhook
-    app.run_webhook(
+# ===== 主程序 =====
+async def main():
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("usdt", usdt))
+
+    print("🚀 启动中...")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
-        webhook_url=WEBHOOK_URL + TOKEN
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
     )
+    print(f"✅ Webhook 已启动: {WEBHOOK_URL}/{TOKEN}")
+
+    await app.updater.idle()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
