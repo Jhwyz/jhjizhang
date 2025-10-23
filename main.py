@@ -11,7 +11,7 @@ from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
 # === Telegram 基本设置 ===
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com"
 PORT = int(os.environ.get("PORT", 10000))
 
 DATA_FILE = "data.json"
@@ -79,6 +79,8 @@ def get_okx_price():
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user.username or "未知用户"
     text = update.message.text.strip()
+
+    print(f"[LOG] 收到消息: {user} => {text}")  # 日志输出
 
     if text in ["价格", "/price"]:
         price = get_okx_price()
@@ -158,5 +160,5 @@ def home():
 # === 主程序入口 ===
 if __name__ == "__main__":
     print(f"🚀 启动 Telegram Bot，端口：{PORT}")
-    asyncio.run(application.bot.set_webhook(url=WEBHOOK_URL + TOKEN))
+    asyncio.run(application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}"))
     app.run(host="0.0.0.0", port=PORT)
