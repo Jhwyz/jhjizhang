@@ -1,8 +1,4 @@
 #!/bin/bash
-# 启动 Telegram Bot + Flask Webhook 服务
-
-# 激活虚拟环境
-source .venv/bin/activate
-
-# 启动 Python 应用
-python main.py
+# 启动 Telegram Bot Webhook (FastAPI)
+export APP_URL="https://jhwlkjjz.onrender.com"
+uvicorn main:app --host 0.0.0.0 --port $PORT
