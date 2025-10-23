@@ -5,9 +5,9 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
 # Telegram Bot Token
-TOKEN = "你的BotToken"
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
 PORT = int(os.environ.get("PORT", 8443))
-WEBHOOK_URL = "https://你的域名/"  # 填写你部署的 URL
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 填写你部署的 URL
 
 # OKX P2P 买入 USDT 页面
 OKX_URL = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
@@ -48,3 +48,4 @@ if __name__ == "__main__":
         url_path=TOKEN,
         webhook_url=WEBHOOK_URL + TOKEN
     )
+
