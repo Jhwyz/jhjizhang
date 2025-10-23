@@ -6,7 +6,7 @@ import asyncio
 import os
 
 # ---------- 配置 ----------
-TOKEN = 7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换为你的 Bot Token
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换为你的 Bot Token
 WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 替换为你部署的 URL
 PORT = int(os.environ.get("PORT", 8443))
 
