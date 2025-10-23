@@ -1,13 +1,4 @@
-python-telegram-bot==20.3
-pandas
-openpyxl
-gunicorn
-uvicorn[standard]
-requests
-tornado==6.5.2
-beautifulsoup4
-selenium
-flask
-python-telegram-bot[webhooks]
-requests
-beautifulsoup4
+Flask==2.3.6
+python-telegram-bot[webhooks]==20.3
+requests==2.31.0
+beautifulsoup4==4.12.2
