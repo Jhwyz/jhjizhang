@@ -2,13 +2,13 @@ from fastapi import FastAPI, Request
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# 直接写 Token
+# ⚠️ 直接写 Token（生产环境请保密）
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
 
 app = FastAPI()
 
-# 创建 Telegram Bot 应用（Webhook 模式，不初始化 polling）
-application = ApplicationBuilder().token(TOKEN).build()
+# 创建 Telegram Bot 应用，禁用 polling
+application = ApplicationBuilder().token(TOKEN).post_init(lambda app: None).build()
 
 # 示例命令
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
