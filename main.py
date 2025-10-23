@@ -4,23 +4,22 @@ from fastapi import FastAPI, Request
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# --------------------------
-# 配置
-# --------------------------
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-PORT = int(os.environ.get("PORT", "10000"))
 APP_URL = os.environ.get("APP_URL", "https://jhwlkjjz.onrender.com")
+PORT = int(os.environ.get("PORT", "10000"))
 
 app = FastAPI()
 
-# --------------------------
-# Telegram Bot Application
-# --------------------------
-application = ApplicationBuilder().token(TOKEN).build()
+# 创建 Bot Application（仅 webhook 模式）
+application = ApplicationBuilder().token(TOKEN).post_init(lambda app: None).build()
 
-# --------------------------
-# 币价查询函数
-# --------------------------
+# /start 命令
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 欢迎使用币价查询 Bot！\n直接发送币种代码（如 USDT、BTC）即可查询当前 OKX P2P 买入价格。"
+    )
+
+# 币价查询
 def get_price(symbol: str) -> str:
     try:
         symbol = symbol.upper()
@@ -32,17 +31,7 @@ def get_price(symbol: str) -> str:
     except Exception as e:
         return f"查询失败: {e}"
 
-# --------------------------
-# /start 命令
-# --------------------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 欢迎使用币价查询 Bot！\n直接发送币种代码（如 USDT、BTC）即可查询当前 OKX P2P 买入价格。"
-    )
-
-# --------------------------
 # 消息处理
-# --------------------------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     symbol = update.message.text.strip()
     price = get_price(symbol)
@@ -52,9 +41,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# --------------------------
-# Webhook 路由
-# --------------------------
+# Telegram Webhook 接收
 @app.post(f"/{TOKEN}")
 async def telegram_webhook(req: Request):
     data = await req.json()
@@ -62,19 +49,14 @@ async def telegram_webhook(req: Request):
     await application.process_update(update)
     return {"ok": True}
 
-# --------------------------
-# 自动设置 Webhook
-# --------------------------
+# 启动时自动设置 Webhook
 @app.on_event("startup")
-async def startup_event():
+async def set_webhook():
     bot = Bot(TOKEN)
     bot.set_webhook(f"{APP_URL}/{TOKEN}")
     print("✅ Webhook 已设置成功！")
 
-# --------------------------
-# 启动 Uvicorn
-# --------------------------
+# 本地测试/调试
 if __name__ == "__main__":
     import uvicorn
-    print(f"🚀 Bot 已启动，监听端口 {PORT}")
     uvicorn.run(app, host="0.0.0.0", port=PORT)
