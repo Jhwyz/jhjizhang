@@ -1,20 +1,25 @@
 import os
 import json
 import re
+import asyncio
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
+from flask import Flask, request
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
-# === Telegram 配置 ===
+# === Telegram 基本设置 ===
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-PORT = int(os.environ.get("PORT", 8443))
-WEBHOOK_URL = f"https://jhwlkjjz.onrender.com/{TOKEN}"
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
+PORT = int(os.environ.get("PORT", 10000))
 
 DATA_FILE = "data.json"
 
-# === 数据初始化 ===
+# === 初始化 Flask ===
+app = Flask(__name__)
+
+# === 数据文件初始化 ===
 try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -24,8 +29,7 @@ except:
         "transactions": [],
         "rate": 0.0,
         "exchange": 0.0,
-        "running": False,
-        "history": {}
+        "running": False
     }
 
 def save_data():
@@ -35,7 +39,7 @@ def save_data():
 # === 格式化账单 ===
 def format_message(transactions):
     bj_now = datetime.utcnow() + timedelta(hours=8)
-    date_str = bj_now.strftime("%Y年%-m月%-d日")
+    date_str = bj_now.strftime("%Y年%m月%d日")
     header = f"🌟 天官记账机器人 🌟\n{date_str}\n"
 
     in_tx = [t for t in transactions if t['type'] == 'in']
@@ -62,13 +66,16 @@ def get_okx_price():
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-        prices = [span.get_text(strip=True) for span in soup.select("span.price")[:5]]
-        return prices[0] if prices else "获取失败"
+        price_element = soup.select_one("div[data-test='price']")
+        if price_element:
+            return price_element.get_text(strip=True)
+        else:
+            return "未找到价格"
     except Exception as e:
         print("[ERROR] 获取 OKX P2P 失败:", e)
         return "获取失败"
 
-# === 消息处理器 ===
+# === Telegram 机器人部分 ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user.username or "未知用户"
     text = update.message.text.strip()
@@ -134,24 +141,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ 格式错误，请输入 +50 或 -30")
         return
 
-# === 主程序 ===
+# === 创建 Telegram 应用 ===
 application = Application.builder().token(TOKEN).build()
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# === Webhook 绑定 ===
-async def main():
-    await application.bot.set_webhook(WEBHOOK_URL)
-    print(f"🚀 Telegram Bot 已启动，Webhook: {WEBHOOK_URL}")
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()  # 如果 webhook 不成功，可以临时用 polling
-    await application.idle()
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put_nowait(update)
+    return "OK", 200
 
-import asyncio
+@app.route("/")
+def home():
+    return "✅ Bot is running!"
 
+# === 主程序入口 ===
 if __name__ == "__main__":
     print(f"🚀 启动 Telegram Bot，端口：{PORT}")
     asyncio.run(application.bot.set_webhook(url=WEBHOOK_URL + TOKEN))
     app.run(host="0.0.0.0", port=PORT)
-
-
