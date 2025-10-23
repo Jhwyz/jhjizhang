@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-TOKEN = os.environ.get("BOT_TOKEN", "你的机器人TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://你的域名.com/")
+TOKEN = os.environ.get("BOT_TOKEN", "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://jhwlkjjz.onrender.com/")
 PORT = int(os.environ.get("PORT", 8443))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
