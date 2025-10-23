@@ -1,45 +1,65 @@
+# main.py
 import os
-import asyncio
-import httpx
-from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+import requests
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters, CommandHandler
 
-# ====== 配置 ======
-TOKEN = os.environ.get("7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c")  # 在 Render 设置环境变量 BOT_TOKEN
-WEBHOOK_URL = os.environ.get("https://jhwlkjjz.onrender.com/")  # https://你的域名/
-PORT = int(os.environ.get("PORT", 8443))
+# Telegram Bot Token
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
+# Render 自动提供的端口
+PORT = int(os.environ.get("PORT", "10000"))
+# 你的 Render App URL
+APP_URL = os.environ.get("APP_URL", "https://jhwlkjjz.onrender.com")
 
-# ====== 获取币价函数 ======
-async def get_okx_price():
-    url = "https://www.okx.com/api/v5/market/ticker?instId=USDT-USDT"  # OKX 示例接口
+app = Flask(__name__)
+
+# 创建 Bot Application
+application = ApplicationBuilder().token(TOKEN).build()
+
+# 获取币价函数（OKX P2P 买入为例）
+def get_price(symbol: str) -> str:
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
-            data = resp.json()
-            # 根据接口返回解析价格（示例，需按实际 OKX 接口调整）
-            price = data["data"][0]["last"] if "data" in data else "未知"
-            return price
+        symbol = symbol.upper()
+        url = f"https://www.okx.com/v3/c2c/tradingOrders/book?quoteCurrency=CNY&baseCurrency={symbol}&side=buy"
+        resp = requests.get(url, timeout=5).json()
+        if "data" in resp and resp["data"]:
+            price = resp["data"][0]["price"]
+            return f"{price} CNY"
+        return "未找到该币种的价格"
     except Exception as e:
-        return f"获取价格失败: {e}"
+        return f"查询失败: {e}"
 
-# ====== 消息处理函数 ======
+# /start 命令
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 欢迎使用币价查询 Bot！\n直接发送币种代码（如 USDT、BTC）即可查询当前 OKX P2P 买入价格。"
+    )
+
+# 消息处理
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text.lower() in ["价格", "price"]:
-        price = await get_okx_price()
-        await update.message.reply_text(f"💹 当前 OKX P2P 买入 USDT 价格: {price}")
-    else:
-        await update.message.reply_text("发送“价格”即可查询币价。")
+    symbol = update.message.text.strip()
+    price = get_price(symbol)
+    await update.message.reply_text(f"💹 {symbol} 当前价格: {price}")
 
-# ====== 创建 Application ======
-application = Application.builder().token(TOKEN).build()
+# 添加处理器
+application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# ====== 启动 Webhook ======
+# Flask 路由，用于接收 Telegram Webhook
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), Bot(TOKEN))
+    application.run_async(application.process_update(update))
+    return "OK", 200
+
+# 设置 Webhook
+@app.route("/")
+def set_webhook():
+    bot = Bot(TOKEN)
+    bot.set_webhook(f"{APP_URL}/{TOKEN}")
+    return "Webhook 已设置成功！", 200
+
 if __name__ == "__main__":
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=f"{WEBHOOK_URL}{TOKEN}"
-    )
+    print(f"🚀 Bot 已启动，监听端口 {PORT}")
+    app.run(host="0.0.0.0", port=PORT)
