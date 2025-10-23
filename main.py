@@ -1,14 +1,14 @@
 # main.py
 import os
 import requests
-from flask import Flask, request
+from fastapi import FastAPI, Request
 from telegram import Update, Bot
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
+    CommandHandler,
     MessageHandler,
     filters,
-    CommandHandler,
 )
 
 # =====================
@@ -19,9 +19,9 @@ PORT = int(os.environ.get("PORT", "10000"))
 APP_URL = os.environ.get("APP_URL", "https://jhwlkjjz.onrender.com")
 
 # =====================
-# Flask 应用
+# FastAPI 应用
 # =====================
-app = Flask(__name__)
+app = FastAPI()
 
 # =====================
 # 创建 Telegram Bot Application
@@ -66,27 +66,28 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # =====================
-# Flask 路由，用于接收 Telegram Webhook
+# Webhook 接收路由
 # =====================
-@app.route(f"/{TOKEN}", methods=["POST"])
-async def webhook():
-    data = request.get_json(force=True)
+@app.post(f"/{TOKEN}")
+async def telegram_webhook(req: Request):
+    data = await req.json()
     update = Update.de_json(data, Bot(TOKEN))
     await application.process_update(update)
-    return "OK", 200
+    return "OK"
 
 # =====================
-# 设置 Webhook
+# 设置 Webhook 路由
 # =====================
-@app.route("/", methods=["GET"])
-def set_webhook():
+@app.get("/")
+async def set_webhook():
     bot = Bot(TOKEN)
     success = bot.set_webhook(f"{APP_URL}/{TOKEN}")
-    return "Webhook 设置成功!" if success else "Webhook 设置失败!", 200
+    return {"status": "success" if success else "failed"}
 
 # =====================
-# 启动 Flask
+# 启动命令（本地调试用 uvicorn）
 # =====================
 if __name__ == "__main__":
+    import uvicorn
     print(f"🚀 Bot 已启动，监听端口 {PORT}")
-    app.run(host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
