@@ -1,5 +1,6 @@
 import os
 import requests
+import asyncio
 from fastapi import FastAPI, Request
 from telegram import Update, Bot
 from telegram.ext import (
@@ -65,9 +66,17 @@ async def telegram_webhook(req: Request):
     await application.process_update(update)
     return {"ok": True}
 
-# 设置 webhook
-@app.get("/")
-async def set_webhook():
+# 自动设置 webhook
+@app.on_event("startup")
+async def startup_event():
     bot = Bot(TOKEN)
     bot.set_webhook(f"{APP_URL}/{TOKEN}")
-    return {"message": "Webhook 已设置成功！"}
+    print("✅ Webhook 已设置成功！")
+
+# --------------------------
+# 启动 Uvicorn
+# --------------------------
+if __name__ == "__main__":
+    import uvicorn
+    print(f"🚀 Bot 已启动，监听端口 {PORT}")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
