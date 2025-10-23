@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filte
 # 🔹 直接在这里写 Token 和 Webhook URL
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换成你的机器人 Token
 WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"               # 替换成你的域名
-PORT = 8443  # Render 默认端口可以用环境变量替代，这里直接写死
+PORT = 8443  # Webhook 端口
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().lower()
@@ -19,13 +19,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             soup = BeautifulSoup(resp.text, "html.parser")
             
             prices = []
+            # 注意：网页可能结构变动，这里抓前五个 span.price
             for span in soup.select("span.price")[:5]:
                 prices.append(span.get_text(strip=True))
             
-            if prices:
-                msg = "🔥 OKX P2P 前五买入价格:\n" + "\n".join(prices)
-            else:
-                msg = "⚠️ 未能获取价格，请稍后再试"
+            msg = "🔥 OKX P2P 前五买入价格:\n" + "\n".join(prices) if prices else "⚠️ 未能获取价格"
         except Exception as e:
             msg = f"❌ 获取价格失败: {e}"
         
@@ -35,10 +33,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# 启动 Webhook
+# 使用 PTB v23 的 run_webhook
 app.run_webhook(
     listen="0.0.0.0",
     port=PORT,
-    url_path=TOKEN,
     webhook_url=WEBHOOK_URL + TOKEN
 )
