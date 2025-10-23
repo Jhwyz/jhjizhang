@@ -1,27 +1,24 @@
-import os
 import requests
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-TOKEN = os.environ.get("BOT_TOKEN", "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://jhwlkjjz.onrender.com/")
-PORT = int(os.environ.get("PORT", 8443))
+# 🔹 直接在这里写 Token 和 Webhook URL
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换成你的机器人 Token
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"               # 替换成你的域名
+PORT = 8443  # Render 默认端口可以用环境变量替代，这里直接写死
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().lower()
     if "usdt价" in text:
         try:
             url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-            headers = {
-                "User-Agent": "Mozilla/5.0"
-            }
+            headers = {"User-Agent": "Mozilla/5.0"}
             resp = requests.get(url, headers=headers, timeout=10)
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
             
             prices = []
-            # 假设页面有 <span class="price"> 标签包含价格
             for span in soup.select("span.price")[:5]:
                 prices.append(span.get_text(strip=True))
             
@@ -34,5 +31,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(msg)
 
+# 创建应用
 app = ApplicationBuilder().token(TOKEN).build()
-app.ad
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# 启动 Webhook
+app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    url_path=TOKEN,
+    webhook_url=WEBHOOK_URL + TOKEN
+)
