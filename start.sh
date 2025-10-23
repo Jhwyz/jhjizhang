@@ -1,7 +1,6 @@
 #!/bin/bash
+# 激活虚拟环境
+source .venv/bin/activate
 
-# Render 上默认端口
-PORT=${PORT:=10000}
-
-# 启动 FastAPI + PTB Webhook
-uvicorn main:app --host 0.0.0.0 --port $PORT
+# 启动 bot
+python main.py
