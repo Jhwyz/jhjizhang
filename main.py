@@ -147,6 +147,11 @@ async def main():
     await application.updater.start_polling()  # 如果 webhook 不成功，可以临时用 polling
     await application.idle()
 
+import asyncio
+
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    print(f"🚀 启动 Telegram Bot，端口：{PORT}")
+    asyncio.run(application.bot.set_webhook(url=WEBHOOK_URL + TOKEN))
+    app.run(host="0.0.0.0", port=PORT)
+
+
