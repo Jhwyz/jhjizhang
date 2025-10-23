@@ -1,15 +1,20 @@
 import os
 import requests
-import asyncio
 from fastapi import FastAPI, Request
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters, CommandHandler
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 # --------------------------
 # 配置
 # --------------------------
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-PORT = int(os.environ.get("PORT", 10000))
+PORT = int(os.environ.get("PORT", "10000"))
 APP_URL = os.environ.get("APP_URL", "https://jhwlkjjz.onrender.com")
 
 # --------------------------
@@ -22,14 +27,14 @@ app = FastAPI()
 # --------------------------
 application = ApplicationBuilder().token(TOKEN).build()
 
+# 获取币价
 def get_price(symbol: str) -> str:
     try:
         symbol = symbol.upper()
         url = f"https://www.okx.com/v3/c2c/tradingOrders/book?quoteCurrency=CNY&baseCurrency={symbol}&side=buy"
         resp = requests.get(url, timeout=5).json()
         if "data" in resp and resp["data"]:
-            price = resp["data"][0]["price"]
-            return f"{price} CNY"
+            return f"{resp['data'][0]['price']} CNY"
         return "未找到该币种的价格"
     except Exception as e:
         return f"查询失败: {e}"
@@ -62,7 +67,7 @@ async def telegram_webhook(req: Request):
 
 # 设置 webhook
 @app.get("/")
-def set_webhook():
+async def set_webhook():
     bot = Bot(TOKEN)
     bot.set_webhook(f"{APP_URL}/{TOKEN}")
-    return "Webhook 已设置成功！"
+    return {"message": "Webhook 已设置成功！"}
