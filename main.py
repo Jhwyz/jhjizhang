@@ -1,62 +1,46 @@
-# main.py
-import os
-import httpx
-from bs4 import BeautifulSoup
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+import os
+import requests
+from bs4 import BeautifulSoup
 
-TOKEN = os.environ.get("7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c")  # 在 Render 环境中用环境变量
-WEBHOOK_URL = os.environ.get("https://jhwlkjjz.onrender.com/")  # 你的 Render HTTPS URL，例如 https://your-app.onrender.com
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # 例如 https://yourapp.onrender.com/
+PORT = int(os.environ.get("PORT", 8443))
 
-# ---------- 查询 OKX P2P CNY 买 USDT 前五 ----------
-async def fetch_okx_prices():
-    url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
+OKX_P2P_URL = "https://www.okx.com/p2p-markets/cny/buy-usdt"
 
-        # OKX P2P 页面的价格通常在特定 class 里，我们抓前 5 个
-        prices = []
-        rows = soup.select(".p2p-ads-table tbody tr")[:5]
-        for row in rows:
-            price_cell = row.select_one("td:nth-child(2)")
-            if price_cell:
-                prices.append(price_cell.text.strip())
-        return prices
-
-# ---------- /price 指令 ----------
-async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ---------- 获取OKX P2P 买入 USDT 前五价格 ----------
+async def get_okx_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        prices = await fetch_okx_prices()
-        if not prices:
-            await update.message.reply_text("❌ 获取价格失败")
+        resp = requests.get(OKX_P2P_URL, timeout=5)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        offers = soup.find_all('div', class_='css-1p5a3p4')[:5]
+        if not offers:
+            await update.message.reply_text("无法获取价格，请稍后再试")
             return
-        msg = "💰 OKX CNY 买 USDT 前五价格:\n" + "\n".join([f"{i+1}. {p}" for i, p in enumerate(prices)])
+        msg = "💰 OKX P2P 买入 USDT 前五价格:\n"
+        for i, offer in enumerate(offers, 1):
+            price = offer.find('span', class_='css-1jv3g7').text.strip()
+            amount = offer.find('span', class_='css-1jv3g7').find_next('span').text.strip()
+            msg += f"{i}. 价格: {price} CNY, 可买: {amount} USDT\n"
         await update.message.reply_text(msg)
     except Exception as e:
-        await update.message.reply_text(f"❌ 出错: {e}")
+        await update.message.reply_text(f"获取价格出错: {e}")
 
-# ---------- Telegram Webhook ----------
-async def start_bot():
-    app = ApplicationBuilder().token(TOKEN).build()
+# ---------- 处理消息 ----------
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip().lower()
+    if text == "usdt价":
+        await get_okx_prices(update, context)
 
-    app.add_handler(CommandHandler("price", price_command))
+# ---------- 应用 ----------
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # 设置 webhook
-    await app.bot.set_webhook(WEBHOOK_URL + "/" + TOKEN)
-
-    # 启动 webhook 监听
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8443)),
-        url_path=TOKEN
-    )
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(start_bot())
-
+app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    url_path=TOKEN,
+    webhook_url=WEBHOOK_URL + TOKEN
+)
