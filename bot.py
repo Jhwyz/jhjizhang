@@ -29,7 +29,7 @@ PROXY_NODE = {
     "sni": "data.52daishu.life"
 }
 
-# 本地 SOCKS5 代理端口
+# 本地 SOCKS5 端口
 DEFAULT_SOCKS = os.environ.get("PROXY_SOCKS5", "socks5h://127.0.0.1:1080")
 
 # ==========================
@@ -44,7 +44,6 @@ def check_proxy(proxy_url: str) -> bool:
     except Exception:
         return False
 
-# 自动检测代理可用性
 if check_proxy(DEFAULT_SOCKS):
     PROXIES = {"http": DEFAULT_SOCKS, "https": DEFAULT_SOCKS}
     print(f"✅ 代理可用：{DEFAULT_SOCKS}")
