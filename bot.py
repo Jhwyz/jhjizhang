@@ -201,7 +201,6 @@ async def set_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 安全计算器
 # =======================
 def safe_eval(expr: str):
-    # 只允许数字、运算符、括号和小数点
     if not re.match(r"^[0-9+\-*/().\s]+$", expr):
         return "❌ 表达式包含非法字符"
     try:
@@ -211,45 +210,47 @@ def safe_eval(expr: str):
         return "❌ 表达式计算出错"
 
 # =======================
+# 菜单
+# =======================
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("设置费率", callback_data="rate")],
+        [InlineKeyboardButton("设置汇率", callback_data="exchange")],
+        [InlineKeyboardButton("添加管理员", callback_data="add_admin")],
+        [InlineKeyboardButton("删除管理员", callback_data="del_admin")],
+        [InlineKeyboardButton("查看历史账单", callback_data="show_history")],
+        [InlineKeyboardButton("清空本群历史账单", callback_data="clear_history")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("请选择操作:", reply_markup=reply_markup)
+
+# =======================
 # 处理消息
 # =======================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user.username
     text = update.message.text.strip()
 
-    # -------------------- 查询币价 --------------------
-    if text.lower() == "z0":
-        price_msg = get_okx_usdt_unique_sellers()
-        await update.message.reply_text(price_msg)
+    # -------------------- 菜单 --------------------
+    if text == "菜单":
+        await menu(update, context)
         return
 
-    # -------------------- 计算器 --------------------
-    if re.match(r"^[0-9+\-*/().\s]+$", text):
-        calc_result = safe_eval(text)
-        await update.message.reply_text(calc_result)
+    # -------------------- 上课/下课 --------------------
+    if text == "上课":
+        await start_class(update, context)
+        return
+    if text == "下课":
+        await end_class(update, context)
         return
 
-    # -------------------- 账单相关 --------------------
-    if text == "账单":
-        if data["running"]:
-            if data["transactions"]:
-                await update.message.reply_text(format_message(data['transactions']))
-            else:
-                await update.message.reply_text("当前账单没有任何交易记录")
-        else:
-            await update.message.reply_text("当前没有进行中的账单，请先发送“上课”开始新账单")
-        return
-
-    if text == "管理员":
-        if data["admins"]:
-            await update.message.reply_text("当前管理员列表:\n" + "\n".join([f"@{a}" for a in data["admins"]]))
-        else:
-            await update.message.reply_text("当前没有管理员")
-        return
-
+    # -------------------- 入账/下发 --------------------
     if text.startswith("+") or text.startswith("-"):
         if user not in data["admins"]:
             await update.message.reply_text("只有管理员可以操作")
+            return
+        if not data["running"]:
+            await update.message.reply_text("❌ 当前账单未开启，请先发送“上课”")
             return
         try:
             amount = float(text[1:])
@@ -268,29 +269,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("格式错误，请输入 +50 或 -30")
         return
 
-    if text.startswith("设置费率"):
-        await set_rate(update, context)
-        return
-    if text.startswith("设置汇率"):
-        await set_exchange(update, context)
+    # -------------------- 查询币价 --------------------
+    if text.lower() == "z0":
+        price_msg = get_okx_usdt_unique_sellers()
+        await update.message.reply_text(price_msg)
         return
 
-    # -------------------- 菜单/管理员操作可以继续扩展 --------------------
-    if "action" in context.user_data:
-        # 可按原逻辑处理 add_admin / del_admin
-        pass
+    # -------------------- 计算器 --------------------
+    if re.match(r"^[0-9+\-*/().\s]+$", text):
+        calc_result = safe_eval(text)
+        await update.message.reply_text(calc_result)
+        return
 
 # =======================
-# 应用
+# 应用与 Webhook
 # =======================
 app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(MessageHandler(filters.Regex("^上课$"), start_class))
-app.add_handler(MessageHandler(filters.Regex("^下课$"), end_class))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# =======================
-# Webhook 启动
-# =======================
 app.run_webhook(
     listen="0.0.0.0",
     port=PORT,
