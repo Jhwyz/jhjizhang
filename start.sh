@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ========================
-# 日本代理节点信息
+# 日本节点配置
 # ========================
 PROXY_NAME="🇯🇵专线VIP1|1x 日本2|ChatGPT"
 PROXY_SERVER="jp2.pptv-tv.store"
@@ -10,22 +10,25 @@ PROXY_PORT=17722
 PROXY_PASSWORD="f6df64bb-9717-4030-8387-0bd5ee1199a4"
 PROXY_SNI="data.52daishu.life"
 LOCAL_SOCKS_PORT=1080
-TROJAN_BIN="./trojan-go"
 
 # ========================
-# 检查 trojan-go 是否存在，否则下载
+# trojan-go 二进制路径
+# ========================
+TROJAN_BIN="./trojan-go"
+GITHUB_RAW_URL="https://github.com/Jhwyz/jhjizhang/raw/main/trojan-go-linux-amd64/trojan-go"  # 已解压的可执行文件
+
+# ========================
+# 下载 trojan-go（如果不存在）
 # ========================
 if [ ! -x "$TROJAN_BIN" ]; then
-    echo "未检测到 trojan-go，开始下载..."
-    curl -L -o /tmp/trojan-go.tar.gz https://github.com/p4gefau1t/trojan-go/releases/download/v0.10.3/trojan-go-linux-amd64.tar.gz
-    tar -xzvf /tmp/trojan-go.tar.gz -C /tmp
-    mv /tmp/trojan-go "$TROJAN_BIN"
+    echo "未检测到 trojan-go，开始从 GitHub 下载..."
+    curl -L -o "$TROJAN_BIN" "$GITHUB_RAW_URL"
     chmod +x "$TROJAN_BIN"
-    echo "✅ trojan-go 下载并就绪"
+    echo "✅ trojan-go 下载完成并赋予执行权限（已解压）"
 fi
 
 # ========================
-# 写入 trojan-go 配置
+# 动态生成 trojan-go 配置文件
 # ========================
 cat > trojan-go-config.json <<EOF
 {
@@ -35,11 +38,16 @@ cat > trojan-go-config.json <<EOF
   "remote_addr": "$PROXY_SERVER",
   "remote_port": $PROXY_PORT,
   "password": ["$PROXY_PASSWORD"],
-  "ssl": {"sni":"$PROXY_SNI","verify":false},
+  "ssl": {
+    "verify": false,
+    "sni": "$PROXY_SNI"
+  },
   "udp": true,
   "transport": {"type":"tcp"}
 }
 EOF
+
+echo "✅ trojan-go 配置文件已生成"
 
 # ========================
 # 启动 trojan-go
@@ -69,7 +77,7 @@ else
 fi
 
 # ========================
-# 创建虚拟环境并安装依赖
+# 安装 Python 依赖
 # ========================
 python3 -m venv .venv
 source .venv/bin/activate
