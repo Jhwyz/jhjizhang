@@ -1,66 +1,74 @@
+import time
 import requests
-from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ===== 配置 =====
-TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
-WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
+TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"  # 替换成你的Bot Token
+WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"  # Render 部署域名
 PORT = 10000
-SCRAPINGBEE_API_KEY = "GS65DVP3XMA9M2WBRUY990MW2Z7KZSQKNC5ZZT1K2S6JAIS73NHIA5IGMPH35UU0PEWOXMG8HCF6R6FB"
 
-# 每次启动强制设置 Webhook
-r = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}{TOKEN}")
-print(r.text)  # 输出确认信息
+URL = "https://www.okx.com/v3/c2c/tradingOrders/books"
 
-# ===== 从 OKX P2P 获取前十个卖家实时人民币价格 =====
-def get_okx_usdt_prices():
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Referer": "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt",
+    "Accept": "application/json, text/plain, */*"
+}
+
+# ===== 获取 OKX USDT 前十个唯一卖家 =====
+def get_okx_usdt_unique_sellers():
+    params = {
+        "quoteCurrency": "CNY",
+        "baseCurrency": "USDT",
+        "paymentMethod": "all",
+        "showTrade": "false",
+        "receivingAds": "false",
+        "isAbleFilter": "false",
+        "showFollow": "false",
+        "showAlreadyTraded": "false",
+        "side": "sell",
+        "userType": "all",
+        "t": str(int(time.time() * 1000))
+    }
+
     try:
-        url = "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt"
-        # 通过 ScrapingBee 渲染 JS 页面
-        res = requests.get(
-            "https://app.scrapingbee.com/api/v1/",
-            params={
-                "api_key": SCRAPINGBEE_API_KEY,
-                "url": url,
-                "render_js": "true"
-            },
-            timeout=15
-        )
-        soup = BeautifulSoup(res.text, "html.parser")
-        rows = soup.select(
-            "#root > div:nth-child(4) > div > main > section > div > div > div > div > div > table > tbody > tr"
-        )
-        sellers = []
-        for row in rows[:10]:  # 前十个卖家
-            try:
-                name = row.select_one("td:nth-child(1) span").text.strip()  # 卖家名字
-                price = row.select_one("td:nth-child(2) span").text.strip()  # 卖价
-                limit_info = row.select_one("td:nth-child(3)").text.strip()  # 限额
-                pay_info = row.select_one("td:nth-child(4)").text.strip()  # 支付方式
-                sellers.append((name, price, limit_info, pay_info))
-            except:
-                continue
+        res = requests.get(URL, params=params, headers=HEADERS, timeout=10)
+        res.raise_for_status()
+        data = res.json()
+        sellers = data.get("data", {}).get("sell", [])
 
         if not sellers:
             return "💰 当前 USDT 买入价格：暂无数据"
 
-        msg = "💰 当前 OKX 买入 USDT 前十个卖家价格：\n"
-        for i, (name, price, limit_info, pay_info) in enumerate(sellers, 1):
-            msg += f"{i}. {name} - {price} CNY （限额 {limit_info}，支付方式：{pay_info}）\n"
+        msg = "💰 当前 OKX 买入 USDT 前十个唯一卖家：\n"
+        seen = set()
+        count = 0
+
+        for seller in sellers:
+            name = seller.get("nickName", "未知卖家")
+            price = seller.get("price", "未知价格")
+            # 去重
+            if name not in seen:
+                seen.add(name)
+                count += 1
+                msg += f"{count}. {name} - {price} CNY\n"
+                if count >= 10:
+                    break
+
         return msg
+
     except Exception as e:
-        print(f"❌ 获取 OKX 价格出错: {e}")
-        return "💰 当前 USDT 价格：未知"
+        return f"❌ 获取 OKX 价格出错: {e}"
 
 # ===== 命令处理函数 =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "欢迎使用 OKX USDT 实时价格机器人！输入 /usdt 查看前十个卖家价格。"
+        "欢迎使用 OKX USDT 实时价格机器人！\n输入 /usdt 查看前十个唯一卖家价格。"
     )
 
 async def usdt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    price_msg = get_okx_usdt_prices()
+    price_msg = get_okx_usdt_unique_sellers()
     await update.message.reply_text(price_msg)
 
 # ===== 主程序入口 =====
