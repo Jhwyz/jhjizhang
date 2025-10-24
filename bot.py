@@ -159,7 +159,7 @@ async def end_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id not in data['history']:
         data['history'][chat_id] = []
     data['history'][chat_id].append({
-        "date": datetime.now(tz=timezone.utc).isoformat(),
+        "date": get_bj_now().isoformat(),
         "transactions": data["transactions"]
     })
     data["transactions"] = []
@@ -238,7 +238,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user not in data["admins"]:
             await query.message.reply_text("只有管理员可以删除管理员")
             return
-        await query.message.reply_text("请回复要删除管理员的用户名，例如 @username")
+        await query.message.reply_text("请回复要删除管理员的用户消息")
         context.user_data["action"] = "del_admin"
     elif query.data == "show_history":
         if chat_id not in data['history'] or not data['history'][chat_id]:
@@ -247,8 +247,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msgs = []
             for idx, h in enumerate(data['history'][chat_id], 1):
                 dt = datetime.fromisoformat(h['date']).astimezone(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
-                detail = "\n".join([f"{t['type']} {t['amount']} @{t['user']} {t['rate']}% / {t['exchange']}"
-                                    for t in h['transactions']])
+                detail = "\n".join([f"{t['type']} {t['amount']} @{t['user']} {t['rate']}% / {t['exchange']}" for t in h['transactions']])
                 msgs.append(f"{idx}. {dt} 上课账单 {len(h['transactions'])} 笔\n{detail}")
             await query.message.reply_text("\n\n".join(msgs))
     elif query.data == "clear_history":
@@ -263,7 +262,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user.username
 
-    # 入账/下发
+    # ---------- 处理按钮动作 ----------
+    if "action" in context.user_data:
+        if context.user_data["action"] == "add_admin":
+            if update.message.reply_to_message:
+                target_user = update.message.reply_to_message.from_user
+                if target_user.username not in data['admins']:
+                    data['admins'].append(target_user.username)
+                    save_data()
+                    await update.message.reply_text(f"✅ 已成功添加管理员 @{target_user.username}")
+                else:
+                    await update.message.reply_text(f"⚠️ @{target_user.username} 已是管理员")
+            else:
+                await update.message.reply_text("❌ 请回复要添加管理员的用户消息")
+            context.user_data["action"] = None
+            return
+
+        if context.user_data["action"] == "del_admin":
+            if update.message.reply_to_message:
+                target_user = update.message.reply_to_message.from_user
+                if target_user.username in data['admins']:
+                    data['admins'].remove(target_user.username)
+                    save_data()
+                    await update.message.reply_text(f"✅ 已成功删除管理员 @{target_user.username}")
+                else:
+                    await update.message.reply_text(f"⚠️ @{target_user.username} 不是管理员")
+            else:
+                await update.message.reply_text("❌ 请回复要删除管理员的用户消息")
+            context.user_data["action"] = None
+            return
+
+    # ---------- 入账/下发 ----------
     if text.startswith("+") or text.startswith("-"):
         if user not in data["admins"]:
             await update.message.reply_text("只有管理员可以操作")
@@ -285,7 +314,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("格式错误，请输入 +50 或 -30")
         return
 
-    # 设置费率/汇率
+    # ---------- 设置费率/汇率 ----------
     if text.startswith("设置费率"):
         await set_rate(update, context)
         return
@@ -293,18 +322,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await set_exchange(update, context)
         return
 
-    # 查询币价
+    # ---------- 查询币价 ----------
     if text.lower() == "z0":
         msg = get_okx_usdt_unique_sellers()
         await update.message.reply_text(msg)
         return
 
-    # 安全计算器
+    # ---------- 安全计算器 ----------
     if re.match(r"^[0-9+\-*/().\s]+$", text):
         await update.message.reply_text(safe_eval(text))
         return
 
-    # 实时账单
+    # ---------- 实时账单 ----------
     if text == "账单":
         if data["running"]:
             if data["transactions"]:
@@ -315,7 +344,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("当前没有进行中的账单，请先发送“上课”开始新账单")
         return
 
-    # 管理员列表
+    # ---------- 管理员列表 ----------
     if text == "管理员":
         if data["admins"]:
             await update.message.reply_text("当前管理员列表:\n" + "\n".join([f"@{a}" for a in data["admins"]]))
@@ -323,7 +352,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("当前没有管理员")
         return
 
-    # 菜单
+    # ---------- 菜单 ----------
     if text == "菜单":
         await menu(update, context)
         return
