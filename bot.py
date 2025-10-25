@@ -375,7 +375,6 @@ async def keep_alive(request):
     return web.Response(text="天官机器人正常运行!")
 
 # 添加到 Application
-app = ApplicationBuilder().token(TOKEN).build()
 app.web_app.router.add_get("/", keep_alive)
 
 app.run_webhook(
