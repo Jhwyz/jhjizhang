@@ -368,11 +368,7 @@ app.add_handler(MessageHandler(filters.Regex("^菜单$"), menu))
 app.add_handler(CallbackQueryHandler(button))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-from aiohttp import web
 
-# 保活 HTTP 路由（Render访问 / 时返回成功）
-async def keep_alive(request):
-    return web.Response(text="天官机器人正常运行!")
 
 # 添加到 Application
 app.web_app.router.add_get("/", keep_alive)
