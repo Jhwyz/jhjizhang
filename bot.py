@@ -369,10 +369,6 @@ app.add_handler(CallbackQueryHandler(button))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 
-
-# 添加到 Application
-app.web_app.router.add_get("/", keep_alive)
-
 app.run_webhook(
     listen="0.0.0.0",
     port=PORT,
