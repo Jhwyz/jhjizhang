@@ -9,3 +9,4 @@ PySocks==1.7.1
 # --- 异步工具 ---
 anyio>=4.0
 beautifulsoup4
+aiohttp>=3.8.5
