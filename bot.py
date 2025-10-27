@@ -328,10 +328,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(msg)
         return
 
-    # ---------- 安全计算器 ----------
-    if re.match(r"^[0-9+\-*/().\s]+$", text):
-        await update.message.reply_text(safe_eval(text))
-        return
+# ---------- 安全计算器 ----------
+if re.match(r"^[0-9+\-*/().\s]+$", text) and any(op in text for op in "+-*/"):
+    await update.message.reply_text(safe_eval(text))
+    return
+
 
     # ---------- 实时账单 ----------
     if text == "账单":
