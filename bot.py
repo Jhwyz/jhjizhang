@@ -330,7 +330,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------- 安全计算器 ----------
 if re.match(r"^[0-9+\-*/().\s]+$", text) and any(op in text for op in "+-*/"):
-    await update.message.reply_text(safe_eval(text))
+    try:
+        result = safe_eval(text)
+        await update.message.reply_text(result)
+    except Exception as e:
+        await update.message.reply_text(f"❌ 计算出错: {e}")
     return
 
 
