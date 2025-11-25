@@ -5,7 +5,7 @@ set -euo pipefail
 # 日本节点配置
 # ========================
 PROXY_NAME="🇸🇬专线VIP1|1x 新加坡1"
-PROXY_SERVER="2409:8754:1410:8003::a"
+PROXY_SERVER="183.236.97.18"
 PROXY_PORT=17703
 PROXY_PASSWORD="7fd81dac-48fc-47b8-a230-170174ac6a8d"
 PROXY_SNI="data.52daishu.life"
