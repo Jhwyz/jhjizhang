@@ -6,7 +6,7 @@ set -euo pipefail
 # ========================
 PROXY_NAME="🇸🇬专线VIP1|1x 新加坡1"
 PROXY_SERVER="fc6yg92d6y.9527cdn.eu.org"
-PROXY_PORT=17711
+PROXY_PORT=17722
 PROXY_PASSWORD="7fd81dac-48fc-47b8-a230-170174ac6a8d"
 PROXY_SNI="data.52daishu.life"
 LOCAL_SOCKS_PORT=1080
