@@ -4,10 +4,10 @@ set -euo pipefail
 # ========================
 # 日本节点配置
 # ========================
-PROXY_NAME="🇯🇵专线VIP1|1x 日本2|ChatGPT"
-PROXY_SERVER="jp2.pptv-tv.store"
-PROXY_PORT=17722
-PROXY_PASSWORD="f6df64bb-9717-4030-8387-0bd5ee1199a4"
+PROXY_NAME="🇸🇬专线VIP1|1x 新加坡1"
+PROXY_SERVER="fc6yg92d6y.9527cdn.eu.org"
+PROXY_PORT=17711
+PROXY_PASSWORD="7fd81dac-48fc-47b8-a230-170174ac6a8d"
 PROXY_SNI="data.52daishu.life"
 LOCAL_SOCKS_PORT=1080
 
