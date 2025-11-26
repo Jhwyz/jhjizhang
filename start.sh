@@ -4,13 +4,11 @@ set -euo pipefail
 # ========================
 # 配置：代理节点信息
 # ========================
-PROXY_NAME="🇸🇬专线VIP1|1x 新加坡1"
+PROXY_NAME="🇯🇵专线VIP1|1x 日本2|ChatGPT"
 PROXY_SERVER="mf2c0plk8d.14y.top"
 PROXY_PORT=17722
 PROXY_PASSWORD="7fd81dac-48fc-47b8-a230-170174ac6a8d"
 PROXY_SNI="data.52daishu.life"
-
-# Render 环境中分配的端口，默认 1080
 LOCAL_SOCKS_PORT=${PORT:-1080}
 
 # ========================
@@ -70,6 +68,7 @@ sleep 3  # 等待 Trojan-Go 启动
 # 检测代理端口是否已启动
 # ========================
 echo "🔍 检测代理是否已就绪..."
+
 ready=0
 for i in {1..20}; do
     if (echo > /dev/tcp/127.0.0.1/$LOCAL_SOCKS_PORT) >/dev/null 2>&1; then
@@ -84,6 +83,11 @@ if [ "$ready" -eq 1 ]; then
     echo "✅ 代理已就绪: 127.0.0.1:$LOCAL_SOCKS_PORT"
 else
     echo "⚠️ 代理启动失败，无法连接代理节点。"
+    # 增加调试信息，检查是否能连接代理服务器
+    echo "尝试连接到代理服务器..."
+    curl -v https://$PROXY_SERVER:$PROXY_PORT || echo "无法连接代理服务器"
+    echo "检查 Trojan-Go 日志文件..."
+    tail -n 20 trojan-go.log
 fi
 
 # ========================
