@@ -14,18 +14,22 @@ PROXY_SNI="data.52daishu.life"
 LOCAL_SOCKS_PORT=${PORT:-1080}
 
 # ========================
-# Trojan-Go 二进制路径
+# Trojan-Go 下载地址
 # ========================
 TROJAN_BIN="./trojan-go-linux-amd64/trojan-go"
+GITHUB_TROJAN_URL="https://github.com/Jhwyz/jhjizhang/raw/main/trojan-go-linux-amd64/trojan-go"
 
 # ========================
-# 检查 Trojan-Go 是否存在并可执行
+# 下载并赋予 Trojan-Go 执行权限
 # ========================
 if [ ! -x "$TROJAN_BIN" ]; then
-    echo "❌ Trojan-Go 二进制文件不存在或不可执行。"
-    echo "请确保 Trojan-Go 文件存在并已赋予执行权限："
-    echo "    chmod +x trojan-go-linux-amd64/trojan-go"
-    exit 1
+    echo "🚨 未找到 Trojan-Go 文件，正在从 GitHub 下载..."
+    mkdir -p ./trojan-go-linux-amd64
+
+    # 下载 Trojan-Go 文件
+    curl -L -o "$TROJAN_BIN" "$GITHUB_TROJAN_URL"
+    chmod +x "$TROJAN_BIN"
+    echo "✅ Trojan-Go 下载并赋予执行权限成功"
 fi
 
 # ========================
