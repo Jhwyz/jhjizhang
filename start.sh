@@ -2,115 +2,110 @@
 set -euo pipefail
 
 # ========================
-# 日本节点配置
+# 配置：代理节点信息
 # ========================
 PROXY_NAME="🇸🇬专线VIP1|1x 新加坡1"
 PROXY_SERVER="mf2c0plk8d.14y.top"
 PROXY_PORT=17722
 PROXY_PASSWORD="7fd81dac-48fc-47b8-a230-170174ac6a8d"
 PROXY_SNI="data.52daishu.life"
-LOCAL_SOCKS_PORT=1080
+
+# Render 环境中分配的端口，默认 1080
+LOCAL_SOCKS_PORT=${PORT:-1080}
 
 # ========================
-# trojan-go 二进制路径
+# Trojan-Go 二进制路径
 # ========================
-TROJAN_BIN="./trojan-go"
-GITHUB_RAW_URL="https://github.com/Jhwyz/jhjizhang/raw/main/trojan-go-linux-amd64/trojan-go"  # 已解压的可执行文件
+TROJAN_BIN="./trojan-go-linux-amd64/trojan-go"
 
 # ========================
-# Render 环境变量 (如果需要)
+# 检查 Trojan-Go 是否存在并可执行
 # ========================
-# 如果你希望通过环境变量配置代理，可以通过 Render 配置这些
-# 这里假设你在 Render 控制台设置了环境变量，或可以直接在命令行中修改
-
-# 获取 Render 环境中的端口设置（如果有）
-RENDER_PORT=${PORT:-1080}
+if [ ! -x "$TROJAN_BIN" ]; then
+    echo "❌ Trojan-Go 二进制文件不存在或不可执行。"
+    echo "请确保 Trojan-Go 文件存在并已赋予执行权限："
+    echo "    chmod +x trojan-go-linux-amd64/trojan-go"
+    exit 1
+fi
 
 # ========================
-# 检查 Trojan-Go 是否已经运行
+# 生成 Trojan-Go 配置文件
 # ========================
-if pgrep -f "$TROJAN_BIN" > /dev/null; then
-    echo "Trojan-Go 已经在运行，跳过启动..."
-else
-    # ========================
-    # 下载 trojan-go（如果不存在）
-    # ========================
-    if [ ! -x "$TROJAN_BIN" ]; then
-        echo "未检测到 trojan-go，开始从 GitHub 下载..."
-        curl -L -o "$TROJAN_BIN" "$GITHUB_RAW_URL"
-        chmod +x "$TROJAN_BIN"
-        echo "✅ trojan-go 下载完成并赋予执行权限（已解压）"
-    fi
+echo "生成 Trojan-Go 配置文件..."
 
-    # ========================
-    # 动态生成 trojan-go 配置文件
-    # ========================
-    cat > trojan-go-config.json <<EOF
+cat > trojan-go-config.json <<EOF
 {
   "run_type": "client",
-  "local_addr": "127.0.0.1",
-  "local_port": $RENDER_PORT,
+  "local_addr": "0.0.0.0",
+  "local_port": $LOCAL_SOCKS_PORT,
   "remote_addr": "$PROXY_SERVER",
   "remote_port": $PROXY_PORT,
   "password": ["$PROXY_PASSWORD"],
   "ssl": {
-    "verify": true,
+    "verify": false,
     "sni": "$PROXY_SNI"
   },
   "udp": true,
-  "transport": {"type":"tcp"}
+  "transport": { "type": "tcp" }
 }
 EOF
 
-    echo "✅ trojan-go 配置文件已生成"
-
-    # ========================
-    # 启动 trojan-go (确保在前台运行)
-    # ========================
-    echo "启动 trojan-go 代理..."
-    $TROJAN_BIN -config ./trojan-go-config.json -verbose >> trojan-go.log 2>&1
-    echo "✅ Trojan-Go 启动成功"
-fi
+echo "✅ Trojan-Go 配置文件已生成"
 
 # ========================
-# 检测本地 SOCKS5 是否可用
+# 启动 Trojan-Go（前台运行）
 # ========================
+echo "🚀 启动 Trojan-Go 代理..."
+
+$TROJAN_BIN -config ./trojan-go-config.json -verbose > trojan-go.log 2>&1 &
+TG_PID=$!
+
+sleep 3  # 等待 Trojan-Go 启动
+
+# ========================
+# 检测代理端口是否已启动
+# ========================
+echo "🔍 检测代理是否已就绪..."
 ready=0
-for i in $(seq 1 30); do
-    if (echo > /dev/tcp/127.0.0.1/$RENDER_PORT) >/dev/null 2>&1; then
+for i in {1..20}; do
+    if (echo > /dev/tcp/127.0.0.1/$LOCAL_SOCKS_PORT) >/dev/null 2>&1; then
         ready=1
         break
     fi
-    sleep 2  # 延长等待时间
+    echo "等待代理启动中... ($i/20)"
+    sleep 1
 done
 
 if [ "$ready" -eq 1 ]; then
-    echo "✅ 代理就绪：127.0.0.1:$RENDER_PORT"
-    echo "代理节点信息：$PROXY_NAME - $PROXY_SERVER:$PROXY_PORT"
+    echo "✅ 代理已就绪: 127.0.0.1:$LOCAL_SOCKS_PORT"
 else
-    echo "⚠️ 代理未就绪，Bot 将尝试直连"
-    echo "代理节点信息：$PROXY_NAME - $PROXY_SERVER:$PROXY_PORT（未连接）"
+    echo "⚠️ 代理启动失败，无法连接代理节点。"
 fi
+
+# ========================
+# Python 虚拟环境
+# ========================
+if [ ! -d ".venv" ]; then
+    echo "🔧 创建 Python 虚拟环境..."
+    python3 -m venv .venv
+fi
+
+source .venv/bin/activate
+pip install --upgrade pip
 
 # ========================
 # 安装 Python 依赖
 # ========================
-if [ ! -d ".venv" ]; then
-    echo "未检测到虚拟环境，创建新的虚拟环境..."
-    python3 -m venv .venv
-fi
-source .venv/bin/activate
-pip install --upgrade pip
-
-# 检查 requirements.txt 是否存在
 if [ ! -f "requirements.txt" ]; then
-    echo "❌ requirements.txt 文件不存在，请检查！"
+    echo "❌ 缺少 requirements.txt 文件"
     exit 1
 fi
+
+echo "安装 Python 依赖..."
 pip install -r requirements.txt
 
 # ========================
-# 启动 Bot
+# 启动 bot.py
 # ========================
-echo "启动 bot.py ..."
-exec python bot.py >> bot.log 2>&1
+echo "🚀 启动 Bot..."
+exec python bot.py
