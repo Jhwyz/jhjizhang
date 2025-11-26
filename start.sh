@@ -55,6 +55,33 @@ EOF
 echo "✅ Trojan-Go 配置文件已生成"
 
 # ========================
+# 检查代理服务器连接
+# ========================
+echo "🔍 检查代理服务器 $PROXY_SERVER:$PROXY_PORT 是否可达..."
+
+if ! curl -s --head "https://$PROXY_SERVER:$PROXY_PORT" | head -n 1 | grep -q "HTTP/"; then
+    echo "⚠️ 无法连接到代理服务器：$PROXY_SERVER:$PROXY_PORT"
+    exit 1
+else
+    echo "✅ 代理服务器连接正常"
+fi
+
+# ========================
+# SSL 配置检查
+# ========================
+echo "🔍 正在检查代理的 SSL 配置..."
+
+SSL_TEST=$(openssl s_client -connect $PROXY_SERVER:$PROXY_PORT -servername $PROXY_SNI </dev/null 2>&1)
+
+if echo "$SSL_TEST" | grep -q "SSL handshake"; then
+    echo "✅ SSL 配置正确"
+else
+    echo "⚠️ SSL 配置或 SNI 错误："
+    echo "$SSL_TEST"
+    exit 1
+fi
+
+# ========================
 # 启动 Trojan-Go（前台运行）
 # ========================
 echo "🚀 启动 Trojan-Go 代理..."
@@ -88,6 +115,7 @@ else
     curl -v https://$PROXY_SERVER:$PROXY_PORT || echo "无法连接代理服务器"
     echo "检查 Trojan-Go 日志文件..."
     tail -n 20 trojan-go.log
+    exit 1
 fi
 
 # ========================
