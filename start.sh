@@ -46,21 +46,21 @@ else
     # 动态生成 trojan-go 配置文件
     # ========================
     cat > trojan-go-config.json <<EOF
-    {
-      "run_type": "client",
-      "local_addr": "127.0.0.1",
-      "local_port": $RENDER_PORT,
-      "remote_addr": "$PROXY_SERVER",
-      "remote_port": $PROXY_PORT,
-      "password": ["$PROXY_PASSWORD"],
-      "ssl": {
-        "verify": true,
-        "sni": "$PROXY_SNI"
-      },
-      "udp": true,
-      "transport": {"type":"tcp"}
-    }
-    EOF
+{
+  "run_type": "client",
+  "local_addr": "127.0.0.1",
+  "local_port": $RENDER_PORT,
+  "remote_addr": "$PROXY_SERVER",
+  "remote_port": $PROXY_PORT,
+  "password": ["$PROXY_PASSWORD"],
+  "ssl": {
+    "verify": true,
+    "sni": "$PROXY_SNI"
+  },
+  "udp": true,
+  "transport": {"type":"tcp"}
+}
+EOF
 
     echo "✅ trojan-go 配置文件已生成"
 
