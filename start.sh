@@ -7,7 +7,7 @@ set -euo pipefail
 PROXY_SERVER="203.227.187.106"
 PROXY_PORT=1080
 PROXY_PASSWORD="666666"
-LOCAL_SOCKS_PORT=${PORT:-1080}
+LOCAL_SOCKS_PORT=1080
 
 # ========================
 # Trojan-Go 下载地址
