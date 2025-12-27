@@ -14,23 +14,26 @@ VMESS_PATH="/555340ab-5ec5-4d93-8032-39fd12d5dbb5"
 VMESS_ALTERID=0
 VMESS_SECURITY="auto"
 
-V2RAY_BIN="./v2ray/v2ray"
+V2RAY_DIR="./v2ray"
+V2RAY_BIN="$V2RAY_DIR/v2ray"
 
 # ========================
 # 下载 V2Ray（如果不存在）
 # ========================
 if [ ! -x "$V2RAY_BIN" ]; then
     echo "🚨 下载 V2Ray..."
-    mkdir -p ./v2ray
-    curl -L -o ./v2ray/v2ray-linux-64.zip "https://github.com/v2fly/v2ray-core/releases/download/v5.42.0/v2ray-linux-64.zip"
-    unzip ./v2ray/v2ray-linux-64.zip -d ./v2ray
-    chmod +x ./v2ray/v2ray
+    mkdir -p "$V2RAY_DIR"
+    curl -L -o "$V2RAY_DIR/v2ray-linux-64.zip" "https://github.com/v2fly/v2ray-core/releases/download/v5.42.0/v2ray-linux-64.zip"
+    unzip "$V2RAY_DIR/v2ray-linux-64.zip" -d "$V2RAY_DIR"
+    chmod +x "$V2RAY_BIN"
 fi
 
 # ========================
 # 生成 V2Ray 配置
 # ========================
-cat > v2ray-config.json <<EOF
+CONFIG_FILE="$V2RAY_DIR/v2ray-config.json"
+
+cat > "$CONFIG_FILE" <<EOF
 {
   "inbounds": [
     {
@@ -76,7 +79,7 @@ EOF
 # 启动 V2Ray
 # ========================
 echo "🚀 启动 V2Ray..."
-$V2RAY_BIN -config v2ray-config.json > v2ray.log 2>&1 &
+"$V2RAY_BIN" run -c "$CONFIG_FILE" > "$V2RAY_DIR/v2ray.log" 2>&1 &
 
 sleep 3
 
@@ -87,7 +90,7 @@ if (echo > /dev/tcp/127.0.0.1/$LOCAL_SOCKS_PORT) >/dev/null 2>&1; then
     echo "✅ 本地 SOCKS5 已就绪: 127.0.0.1:$LOCAL_SOCKS_PORT"
 else
     echo "❌ V2Ray 启动失败"
-    tail -n 50 v2ray.log
+    tail -n 50 "$V2RAY_DIR/v2ray.log"
     exit 1
 fi
 
