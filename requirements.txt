@@ -3,13 +3,12 @@ python-telegram-bot[webhooks]==22.5
 
 # --- HTTP 请求 & SOCKS5 支持 ---
 requests[socks]==2.32.3
-httpx==0.28.1
-PySocks!=1.5.7,>=1.5.6
+httpx[socks]==0.28.1
 
 # --- 异步工具 & 网络解析 ---
 anyio>=4.0
 aiohttp>=3.8.5
 beautifulsoup4
 
-# --- 重试工具（可选，但增强网络稳定性） ---
+# --- 重试工具（可选） ---
 urllib3>=2.6.2
