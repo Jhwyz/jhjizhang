@@ -34,12 +34,20 @@ HEADERS = {
     "Referer": "https://www.okx.com/",
 }
 
-PROXIES = "socks5://127.0.0.1:1080"  # httpx 支持统一格式
+# 本地 V2Ray VMess + WS + TLS 代理
+PROXIES = "socks5://127.0.0.1:1080"
 
 # =======================
-# 异步 HTTP Client
+# 异步 HTTP Client (支持 SOCKS5 代理)
 # =======================
-async_client = httpx.AsyncClient(headers=HEADERS, proxies=PROXIES, timeout=15)
+transport = httpx.AsyncHTTPTransport(
+    proxies={
+        "http://": PROXIES,
+        "https://": PROXIES,
+    }
+)
+
+async_client = httpx.AsyncClient(headers=HEADERS, transport=transport, timeout=15)
 
 # =======================
 # 数据初始化
@@ -57,18 +65,15 @@ else:
         "history": {},
     }
 
-
 def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
 
 # =======================
 # 北京时间
 # =======================
 def bj_now():
     return datetime.now(timezone.utc) + timedelta(hours=8)
-
 
 # =======================
 # OKX 查询
@@ -103,7 +108,6 @@ async def get_okx():
     except Exception as e:
         return f"❌ 获取 OKX 失败: {type(e).__name__}"
 
-
 # =======================
 # 账单格式化
 # =======================
@@ -135,7 +139,6 @@ def format_bill(tx):
 
     return "\n".join(lines)
 
-
 # =======================
 # 上课 / 下课
 # =======================
@@ -148,7 +151,6 @@ async def start_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data()
     await update.message.reply_text(f"✅ 已上课，管理员: @{user}")
 
-
 async def end_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     data["history"].setdefault(chat_id, []).append(
@@ -159,7 +161,6 @@ async def end_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data()
     await update.message.reply_text("✅ 已下课，账单已保存")
 
-
 # =======================
 # 菜单 & 按钮
 # =======================
@@ -169,7 +170,6 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📜 历史账单", callback_data="history")],
     ]
     await update.message.reply_text("请选择操作:", reply_markup=InlineKeyboardMarkup(kb))
-
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -189,7 +189,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 detail = "\n".join([f"{t['type']} {t['amount']} @{t['user']} {t.get('rate',0)}% / {t.get('exchange',0)}" for t in h['transactions']])
                 msgs.append(f"{idx}. {dt} 上课账单 {len(h['transactions'])} 笔\n{detail}")
             await q.message.reply_text("\n\n".join(msgs))
-
 
 # =======================
 # 消息处理
@@ -236,7 +235,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ---------- OKX ----------
     if text.lower() == "z0":
         await update.message.reply_text(await get_okx())
-
 
 # =======================
 # 启动
