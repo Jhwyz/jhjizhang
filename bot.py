@@ -42,10 +42,7 @@ PROXIES = "socks5://127.0.0.1:1080"
 # =======================
 async_client = httpx.AsyncClient(
     headers=HEADERS,
-    proxies={
-        "http://": PROXIES,
-        "https://": PROXIES,
-    },
+    proxy="socks5://127.0.0.1:1080",
     timeout=15,
 )
 
