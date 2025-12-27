@@ -13,10 +13,8 @@ import os
 import re
 import time
 import asyncio
-import requests
+import httpx
 from datetime import datetime, timedelta, timezone
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # =======================
 # 基础配置
@@ -36,33 +34,12 @@ HEADERS = {
     "Referer": "https://www.okx.com/",
 }
 
-PROXIES = {
-    "http": "socks5h://127.0.0.1:1080",
-    "https": "socks5h://127.0.0.1:1080",
-}
+PROXIES = "socks5://127.0.0.1:1080"  # httpx 支持统一格式
 
 # =======================
-# OKX Session（修复 SSL EOF）
+# 异步 HTTP Client
 # =======================
-def create_okx_session():
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        connect=3,
-        read=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"],
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    session.headers.update(HEADERS)
-    session.proxies.update(PROXIES)
-    return session
-
-
-OKX_SESSION = create_okx_session()
+async_client = httpx.AsyncClient(headers=HEADERS, proxies=PROXIES, timeout=15)
 
 # =======================
 # 数据初始化
@@ -96,7 +73,7 @@ def bj_now():
 # =======================
 # OKX 查询
 # =======================
-def _get_okx_sync():
+async def get_okx():
     params = {
         "quoteCurrency": "CNY",
         "baseCurrency": "USDT",
@@ -104,33 +81,25 @@ def _get_okx_sync():
         "side": "sell",
         "t": int(time.time() * 1000),
     }
-
-    res = OKX_SESSION.get(OKX_URL, params=params, timeout=15)
-    res.raise_for_status()
-    sellers = res.json().get("data", {}).get("sell", [])
-
-    if not sellers:
-        return "暂无 OKX 数据"
-
-    seen = set()
-    msg = "💰 OKX 买入 USDT 前十卖家：\n"
-    idx = 0
-    for s in sellers:
-        name = s.get("nickName")
-        price = s.get("price")
-        if name and name not in seen:
-            seen.add(name)
-            idx += 1
-            msg += f"{idx}. {name} - {price} CNY\n"
-            if idx >= 10:
-                break
-    return msg
-
-
-async def get_okx():
-    loop = asyncio.get_running_loop()
     try:
-        return await loop.run_in_executor(None, _get_okx_sync)
+        res = await async_client.get(OKX_URL, params=params)
+        res.raise_for_status()
+        sellers = res.json().get("data", {}).get("sell", [])
+        if not sellers:
+            return "💰 当前 USDT 买入价格：暂无数据"
+        msg = "💰 OKX 买入 USDT 前十卖家：\n"
+        seen = set()
+        count = 0
+        for s in sellers:
+            name = s.get("nickName", "未知卖家")
+            price = s.get("price", "未知价格")
+            if name not in seen:
+                seen.add(name)
+                count += 1
+                msg += f"{count}. {name} - {price} CNY\n"
+                if count >= 10:
+                    break
+        return msg
     except Exception as e:
         return f"❌ 获取 OKX 失败: {type(e).__name__}"
 
@@ -145,11 +114,24 @@ def format_bill(tx):
 
     lines = [header, f"💰 入款 {len(ins)} 笔"]
     for t in ins:
-        lines.append(f"+{t['amount']} @{t['user']}")
+        amt_after_fee = t["amount"] * (1 - t.get("rate", 0)/100)
+        usd = amt_after_fee / t.get("exchange", 1) if t.get("exchange", 0) > 0 else 0.0
+        lines.append(f"+{t['amount']} - {t.get('rate',0)}% / {t.get('exchange',0)} = {usd:.2f} by @{t['user']}")
 
     lines.append(f"\n📤 下发 {len(outs)} 笔")
     for t in outs:
-        lines.append(f"-{t['amount']} @{t['user']}")
+        lines.append(f"-{t['amount']} by @{t['user']}")
+
+    total_in = sum(t["amount"] for t in ins)
+    total_out = sum(t["amount"] for t in outs)
+    usd_total = sum((t["amount"] * (1 - t.get("rate",0)/100) / t.get("exchange",1)) for t in ins if t.get("exchange",0) > 0)
+
+    lines.append(f"\n📊 总入款: {total_in}")
+    lines.append(f"💵 当前费率: {data['rate']}%")
+    lines.append(f"💱 当前汇率: {data['exchange']}")
+    lines.append(f"✅ 应下发: {usd_total:.2f} (USDT)")
+    lines.append(f"📤 已下发: {total_out} (USDT)")
+    lines.append(f"❌ 未下发: {usd_total - total_out:.2f} (USDT)")
 
     return "\n".join(lines)
 
@@ -164,16 +146,13 @@ async def start_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data["transactions"] = []
     data["running"] = True
     save_data()
-    await update.message.reply_text("✅ 已上课，开始记账")
+    await update.message.reply_text(f"✅ 已上课，管理员: @{user}")
 
 
 async def end_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    data["history"].setdefault(str(chat_id), []).append(
-        {
-            "time": bj_now().isoformat(),
-            "transactions": data["transactions"],
-        }
+    chat_id = str(update.effective_chat.id)
+    data["history"].setdefault(chat_id, []).append(
+        {"date": bj_now().isoformat(), "transactions": data["transactions"]}
     )
     data["transactions"] = []
     data["running"] = False
@@ -189,23 +168,27 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📊 查询 OKX", callback_data="okx")],
         [InlineKeyboardButton("📜 历史账单", callback_data="history")],
     ]
-    await update.message.reply_text("请选择：", reply_markup=InlineKeyboardMarkup(kb))
+    await update.message.reply_text("请选择操作:", reply_markup=InlineKeyboardMarkup(kb))
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    chat_id = str(q.message.chat.id)
 
     if q.data == "okx":
         await q.message.reply_text(await get_okx())
-
-    if q.data == "history":
-        chat_id = str(q.message.chat.id)
+    elif q.data == "history":
         hist = data["history"].get(chat_id)
         if not hist:
-            await q.message.reply_text("暂无历史")
+            await q.message.reply_text("本群没有历史账单")
         else:
-            await q.message.reply_text(f"历史账单 {len(hist)} 次")
+            msgs = []
+            for idx, h in enumerate(hist, 1):
+                dt = datetime.fromisoformat(h['date']).astimezone(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
+                detail = "\n".join([f"{t['type']} {t['amount']} @{t['user']} {t.get('rate',0)}% / {t.get('exchange',0)}" for t in h['transactions']])
+                msgs.append(f"{idx}. {dt} 上课账单 {len(h['transactions'])} 笔\n{detail}")
+            await q.message.reply_text("\n\n".join(msgs))
 
 
 # =======================
@@ -215,30 +198,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user.username
 
+    # ---------- 入账/下发 ----------
     if text.startswith("+") or text.startswith("-"):
-        if not data["running"]:
+        if user not in data["admins"]:
+            await update.message.reply_text("只有管理员可以操作")
             return
-        amt = float(text[1:])
-        data["transactions"].append(
-            {
+        try:
+            amount = float(text[1:])
+            t_type = "in" if text.startswith("+") else "out"
+            data["transactions"].append({
                 "user": user,
-                "amount": amt,
-                "type": "in" if text.startswith("+") else "out",
+                "amount": amount,
+                "type": t_type,
                 "time": bj_now().isoformat(),
-            }
-        )
-        save_data()
-        await update.message.reply_text(format_bill(data["transactions"]))
+                "rate": data["rate"],
+                "exchange": data["exchange"]
+            })
+            save_data()
+            await update.message.reply_text(format_bill(data["transactions"]))
+        except:
+            await update.message.reply_text("格式错误，请输入 +50 或 -30")
         return
 
+    # ---------- 查询账单 ----------
     if text == "账单":
-        await update.message.reply_text(format_bill(data["transactions"]))
+        if data["transactions"]:
+            await update.message.reply_text(format_bill(data["transactions"]))
+        else:
+            await update.message.reply_text("当前账单没有任何交易记录")
         return
 
+    # ---------- 菜单 ----------
     if text == "菜单":
         await menu(update, context)
         return
 
+    # ---------- OKX ----------
     if text.lower() == "z0":
         await update.message.reply_text(await get_okx())
 
