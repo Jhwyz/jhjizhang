@@ -5,10 +5,10 @@ set -euo pipefail
 # 配置：代理节点信息
 # ========================
 PROXY_NAME="🇯🇵专线VIP1|1x 日本2|ChatGPT"
-PROXY_SERVER="31.223.184.248"
-PROXY_PORT=17722
-PROXY_PASSWORD="7fd81dac-48fc-47b8-a230-170174ac6a8d"
-PROXY_SNI="data.52daishu.life"
+PROXY_SERVER="203.227.187.106"
+PROXY_PORT=1080
+PROXY_PASSWORD="666666"
+PROXY_SNI=""
 LOCAL_SOCKS_PORT=${PORT:-1080}
 
 # ========================
@@ -48,11 +48,17 @@ cat > trojan-go-config.json <<EOF
     "sni": "$PROXY_SNI"
   },
   "udp": true,
-  "transport": { "type": "tcp" }
+  "transport": { "type": "tcp" },
+  "socks5": {
+    "enabled": true,
+    "listen": "0.0.0.0",
+    "port": $LOCAL_SOCKS_PORT,
+    "username": "666666",
+    "password": "666666"
+  }
 }
 EOF
 
-echo "✅ Trojan-Go 配置文件已生成"
 
 # ========================
 # 检查代理服务器连接
