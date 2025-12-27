@@ -1,10 +1,9 @@
 # --- Telegram Bot ---
 python-telegram-bot[webhooks]==22.5
 
-# --- HTTP & 网络请求 ---
-requests==2.32.3
+# --- HTTP & 网络请求（SOCKS5 必须这样装） ---
+requests[socks]==2.32.3
 httpx==0.28.1
-PySocks==1.7.1
 
 # --- 异步工具 ---
 anyio>=4.0
