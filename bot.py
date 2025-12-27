@@ -4,48 +4,49 @@ from telegram.ext import (
     ContextTypes,
     CommandHandler,
     MessageHandler,
-    filters,
     CallbackQueryHandler,
+    filters,
 )
+
 import json
 import os
 import re
-from datetime import datetime, timedelta, timezone
 import time
-import requests
 import asyncio
+import requests
+from datetime import datetime, timedelta, timezone
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # =======================
-# 配置
+# 基础配置
 # =======================
 TOKEN = "7074233356:AAFA7TsysiHOk_HHSwxLP4rBD21GNEnTL1c"
 WEBHOOK_URL = "https://jhwlkjjz.onrender.com/"
 PORT = int(os.environ.get("PORT", 8443))
 DATA_FILE = "data.json"
 
+# =======================
 # OKX API
+# =======================
 OKX_URL = "https://www.okx.com/v3/c2c/tradingOrders/books"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Referer": "https://www.okx.com/zh-hans/p2p-markets/cny/buy-usdt",
-    "Accept": "application/json, text/plain, */*",
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+    "Referer": "https://www.okx.com/",
 }
 
-# SOCKS5（V2Ray）
 PROXIES = {
     "http": "socks5h://127.0.0.1:1080",
     "https": "socks5h://127.0.0.1:1080",
 }
 
 # =======================
-# OKX Session（关键）
+# OKX Session（修复 SSL EOF）
 # =======================
 def create_okx_session():
     session = requests.Session()
-
-    retries = Retry(
+    retry = Retry(
         total=3,
         connect=3,
         read=3,
@@ -53,11 +54,9 @@ def create_okx_session():
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET"],
     )
-
-    adapter = HTTPAdapter(max_retries=retries)
+    adapter = HTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
-
     session.headers.update(HEADERS)
     session.proxies.update(PROXIES)
     return session
@@ -68,10 +67,10 @@ OKX_SESSION = create_okx_session()
 # =======================
 # 数据初始化
 # =======================
-try:
+if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-except:
+else:
     data = {
         "admins": [],
         "transactions": [],
@@ -90,142 +89,168 @@ def save_data():
 # =======================
 # 北京时间
 # =======================
-def get_bj_now():
-    return datetime.now(tz=timezone.utc) + timedelta(hours=8)
+def bj_now():
+    return datetime.now(timezone.utc) + timedelta(hours=8)
 
 
 # =======================
-# OKX USDT 卖家价格查询（稳定版）
+# OKX 查询
 # =======================
 def _get_okx_sync():
     params = {
         "quoteCurrency": "CNY",
         "baseCurrency": "USDT",
         "paymentMethod": "all",
-        "showTrade": "false",
-        "receivingAds": "false",
-        "isAbleFilter": "false",
-        "showFollow": "false",
-        "showAlreadyTraded": "false",
         "side": "sell",
-        "userType": "all",
-        "t": str(int(time.time() * 1000)),
+        "t": int(time.time() * 1000),
     }
 
     res = OKX_SESSION.get(OKX_URL, params=params, timeout=15)
     res.raise_for_status()
-    data_json = res.json()
-    sellers = data_json.get("data", {}).get("sell", [])
+    sellers = res.json().get("data", {}).get("sell", [])
 
     if not sellers:
-        return "💰 当前 USDT 买入价格：暂无数据"
+        return "暂无 OKX 数据"
 
-    msg = "💰 当前 OKX 买入 USDT 前十个唯一卖家：\n"
     seen = set()
-    count = 0
-
-    for seller in sellers:
-        name = seller.get("nickName", "未知卖家")
-        price = seller.get("price", "未知价格")
-        if name not in seen:
+    msg = "💰 OKX 买入 USDT 前十卖家：\n"
+    idx = 0
+    for s in sellers:
+        name = s.get("nickName")
+        price = s.get("price")
+        if name and name not in seen:
             seen.add(name)
-            count += 1
-            msg += f"{count}. {name} - {price} CNY\n"
-            if count >= 10:
+            idx += 1
+            msg += f"{idx}. {name} - {price} CNY\n"
+            if idx >= 10:
                 break
-
     return msg
 
 
-async def get_okx_usdt_unique_sellers():
+async def get_okx():
     loop = asyncio.get_running_loop()
     try:
         return await loop.run_in_executor(None, _get_okx_sync)
-    except requests.exceptions.SSLError:
-        return "❌ OKX SSL 握手失败（代理异常）"
-    except requests.exceptions.ProxyError:
-        return "❌ SOCKS5 代理不可用（V2Ray 未启动）"
-    except requests.exceptions.Timeout:
-        return "⏱ OKX 请求超时，请稍后再试"
     except Exception as e:
-        return f"❌ 获取 OKX 价格失败: {type(e).__name__}"
+        return f"❌ 获取 OKX 失败: {type(e).__name__}"
 
 
 # =======================
-# 格式化账单（原样保留）
+# 账单格式化
 # =======================
-def format_message(transactions):
-    bj_now = get_bj_now()
-    date_str = bj_now.strftime("%Y年%-m月%-d日")
-    header = f"🌟 天 官 记账机器人 🌟\n{date_str}\n"
+def format_bill(tx):
+    header = f"📅 {bj_now().strftime('%Y-%m-%d')}\n"
+    ins = [t for t in tx if t["type"] == "in"]
+    outs = [t for t in tx if t["type"] == "out"]
 
-    in_tx = [t for t in transactions if t["type"] == "in"]
-    in_lines = [f"💰 已入款（{len(in_tx)}笔）："]
-    for t in in_tx:
-        try:
-            time_str = datetime.fromisoformat(t["time"]).strftime("%H:%M:%S")
-        except:
-            time_str = "未知时间"
-        amt_after_fee = t["amount"] * (1 - t["rate"] / 100)
-        usd = amt_after_fee / t["exchange"] if t["exchange"] > 0 else 0.0
-        in_lines.append(
-            f"  {time_str} {t['amount']} - {t['rate']}% / {t['exchange']} = {usd:.2f} by @{t['user']}"
-        )
+    lines = [header, f"💰 入款 {len(ins)} 笔"]
+    for t in ins:
+        lines.append(f"+{t['amount']} @{t['user']}")
 
-    out_tx = [t for t in transactions if t["type"] == "out"]
-    out_lines = [f"📤 已下发（{len(out_tx)}笔）："]
-    for t in out_tx:
-        try:
-            time_str = datetime.fromisoformat(t["time"]).strftime("%H:%M:%S")
-        except:
-            time_str = "未知时间"
-        out_lines.append(f"  {time_str} {t['amount']} by @{t['user']}")
+    lines.append(f"\n📤 下发 {len(outs)} 笔")
+    for t in outs:
+        lines.append(f"-{t['amount']} @{t['user']}")
 
-    total_in = sum(t["amount"] for t in in_tx)
-    total_out = sum(t["amount"] for t in out_tx)
-    usd_total = sum(
-        (t["amount"] * (1 - t["rate"] / 100)) / t["exchange"]
-        for t in in_tx
-        if t["exchange"] > 0
+    return "\n".join(lines)
+
+
+# =======================
+# 上课 / 下课
+# =======================
+async def start_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user.username
+    if user not in data["admins"]:
+        data["admins"].append(user)
+    data["transactions"] = []
+    data["running"] = True
+    save_data()
+    await update.message.reply_text("✅ 已上课，开始记账")
+
+
+async def end_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    data["history"].setdefault(str(chat_id), []).append(
+        {
+            "time": bj_now().isoformat(),
+            "transactions": data["transactions"],
+        }
     )
+    data["transactions"] = []
+    data["running"] = False
+    save_data()
+    await update.message.reply_text("✅ 已下课，账单已保存")
 
-    summary_lines = [
-        f"\n📊 总入款金额：{total_in}",
-        f"💵 当前费率：{data['rate']}%",
-        f"💱 当前汇率：{data['exchange']}",
-        f"✅ 应下发：{usd_total:.2f} (USDT)",
-        f"📤 已下发：{total_out} (USDT)",
-        f"❌ 未下发：{usd_total - total_out:.2f} (USDT)",
+
+# =======================
+# 菜单 & 按钮
+# =======================
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [
+        [InlineKeyboardButton("📊 查询 OKX", callback_data="okx")],
+        [InlineKeyboardButton("📜 历史账单", callback_data="history")],
     ]
-    return header + "\n".join(in_lines + out_lines + summary_lines)
+    await update.message.reply_text("请选择：", reply_markup=InlineKeyboardMarkup(kb))
+
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    if q.data == "okx":
+        await q.message.reply_text(await get_okx())
+
+    if q.data == "history":
+        chat_id = str(q.message.chat.id)
+        hist = data["history"].get(chat_id)
+        if not hist:
+            await q.message.reply_text("暂无历史")
+        else:
+            await q.message.reply_text(f"历史账单 {len(hist)} 次")
 
 
 # =======================
-# 下面所有逻辑：**原样保留**
+# 消息处理
 # =======================
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    user = update.effective_user.username
 
-# （你的 start_class / end_class / set_rate / set_exchange /
-#  menu / button / handle_message / webhook 启动
-#  —— 全部保持不变，只省略展示）
+    if text.startswith("+") or text.startswith("-"):
+        if not data["running"]:
+            return
+        amt = float(text[1:])
+        data["transactions"].append(
+            {
+                "user": user,
+                "amount": amt,
+                "type": "in" if text.startswith("+") else "out",
+                "time": bj_now().isoformat(),
+            }
+        )
+        save_data()
+        await update.message.reply_text(format_bill(data["transactions"]))
+        return
 
-# ⚠️ 唯一一行改动：
-# 查询币价那里，从同步 → await
+    if text == "账单":
+        await update.message.reply_text(format_bill(data["transactions"]))
+        return
 
-# 在 handle_message 里：
-# 原来：
-# msg = get_okx_usdt_unique_sellers()
-# 改成：
-# msg = await get_okx_usdt_unique_sellers()
+    if text == "菜单":
+        await menu(update, context)
+        return
+
+    if text.lower() == "z0":
+        await update.message.reply_text(await get_okx())
+
 
 # =======================
-# 启动机器人
+# 启动
 # =======================
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(MessageHandler(filters.Regex("^上课$"), start_class))
 app.add_handler(MessageHandler(filters.Regex("^下课$"), end_class))
 app.add_handler(CommandHandler("menu", menu))
-app.add_handler(MessageHandler(filters.Regex("^菜单$"), menu))
 app.add_handler(CallbackQueryHandler(button))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
