@@ -40,14 +40,15 @@ PROXIES = "socks5://127.0.0.1:1080"
 # =======================
 # 异步 HTTP Client (支持 SOCKS5 代理)
 # =======================
-transport = httpx.AsyncHTTPTransport(
+async_client = httpx.AsyncClient(
+    headers=HEADERS,
     proxies={
         "http://": PROXIES,
         "https://": PROXIES,
-    }
+    },
+    timeout=15,
 )
 
-async_client = httpx.AsyncClient(headers=HEADERS, transport=transport, timeout=15)
 
 # =======================
 # 数据初始化
